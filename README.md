@@ -4,10 +4,15 @@ Implementation of "Optimal Auctions through Deep Learning" (https://arxiv.org/pd
 ## Getting Started
 
 Install the following packages:
-- Python 2.7 
-- Tensorflow
+- Python 3.8+ 
+- PyTorch (>=2.1.0)
 - Numpy and Matplotlib packages
 - Easydict - `pip install easydict`
+
+Or install from requirements.txt:
+```bash
+pip install -r requirements.txt
+```
 
 ## Running the experiments
 
