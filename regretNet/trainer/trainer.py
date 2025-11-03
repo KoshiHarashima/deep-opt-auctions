@@ -336,7 +336,7 @@ class Trainer(object):
                 self.net.eval()
                 with torch.no_grad():
                     for _ in range(self.config.val.num_batches):
-                    X, ADV, _ = next(self.val_gen.gen_func)
+                        X, ADV, _ = next(self.val_gen.gen_func)
                     X_tensor = torch.tensor(X, dtype=torch.float32)
                     ADV_tensor = torch.tensor(ADV, dtype=torch.float32)
                     self.adv_var.data = ADV_tensor
