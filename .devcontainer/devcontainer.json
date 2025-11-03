@@ -18,7 +18,7 @@
 				"ms-toolsai.jupyter-renderers"
 			],
 			"settings": {
-				"python.defaultInterpreterPath": "/opt/conda/bin/python",
+				"python.defaultInterpreterPath": "/usr/local/bin/python",
 				"python.linting.enabled": true,
 				"python.linting.pylintEnabled": false,
 				"python.formatting.provider": "black",
