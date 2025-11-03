@@ -7,7 +7,10 @@ import sys
 import time
 import logging
 import numpy as np
-import tensorflow as tf
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
 
 
 class Trainer(object):
@@ -28,7 +31,9 @@ class Trainer(object):
             
         # Set Seeds for reproducibility
         np.random.seed(self.config[self.mode].seed)
-        tf.set_random_seed(self.config[self.mode].seed)
+        torch.manual_seed(self.config[self.mode].seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(self.config[self.mode].seed)
         
         # Init Logger
         self.init_logger()
@@ -39,16 +44,10 @@ class Trainer(object):
         ## Clip Op
         self.clip_op_lambda = clip_op_lambda
         
-        # Init TF-graph
+        # Init graph components (no TF graph, just setup optimizers and variables)
         self.init_graph()
-        
-    def get_clip_op(self, adv_var):
-        self.clip_op =  self.clip_op_lambda(adv_var)
-        #tf.assign(adv_var, tf.clip_by_value(adv_var, 0.0, 1.0))
-        
-
+              
     def init_logger(self):
-
 
         logger = logging.getLogger()
         logger.setLevel(logging.INFO)
@@ -74,7 +73,7 @@ class Trainer(object):
             Output params:
                 revenue: scalar
         """
-        return tf.reduce_mean(tf.reduce_sum(pay, axis=-1))
+        return torch.mean(torch.sum(pay, dim=-1))
 
     def compute_utility(self, x, alloc, pay):
         """ Given input valuation (x), payment (pay) and allocation (alloc), computes utility
@@ -85,165 +84,131 @@ class Trainer(object):
             Output params:
                 utility: [num_batches, num_agents]
         """
-        return tf.reduce_sum(tf.multiply(alloc, x), axis=-1) - pay
+        return torch.sum(alloc * x, dim=-1) - pay
 
 
     def get_misreports(self, x, adv_var, adv_shape):
-
+        """Generate misreports from adversarial variables"""
         num_misreports = adv_shape[1]
-        adv = tf.tile(tf.expand_dims(adv_var, 0), [self.config.num_agents, 1, 1, 1, 1])
-        x_mis = tf.tile(x, [self.config.num_agents * num_misreports, 1, 1])
-        x_r = tf.reshape(x_mis, adv_shape)
-        y = x_r * (1 - self.adv_mask) + adv * self.adv_mask
-        misreports = tf.reshape(y, [-1, self.config.num_agents, self.config.num_items])
+        adv = adv_var.unsqueeze(0).repeat(self.config.num_agents, 1, 1, 1, 1)
+        x_mis = x.repeat(self.config.num_agents * num_misreports, 1, 1)
+        x_r = x_mis.view(adv_shape)
+        y = x_r * (1 - self.adv_mask_tensor) + adv * self.adv_mask_tensor
+        misreports = y.view(-1, self.config.num_agents, self.config.num_items)
         return x_mis, misreports
 
     def init_graph(self):
        
         x_shape = [self.config[self.mode].batch_size, self.config.num_agents, self.config.num_items]
-        c_shape = [self.config[self.mode].batch_size, self.config.num_agents]
         adv_shape = [self.config.num_agents, self.config[self.mode].num_misreports, self.config[self.mode].batch_size, self.config.num_agents, self.config.num_items]
-        adv_var_shape = [ self.config[self.mode].num_misreports, self.config[self.mode].batch_size, self.config.num_agents, self.config.num_items]
+        adv_var_shape = [self.config[self.mode].num_misreports, self.config[self.mode].batch_size, self.config.num_agents, self.config.num_items]
         u_shape = [self.config.num_agents, self.config[self.mode].num_misreports, self.config[self.mode].batch_size, self.config.num_agents]
 
-        # Placeholders
-        self.x = tf.placeholder(tf.float32, shape=x_shape, name='x')
-        self.c = tf.placeholder(tf.float32, shape=c_shape, name='c')
-        self.adv_init = tf.placeholder(tf.float32, shape=adv_var_shape, name='adv_init')
-        
+        # Create masks as tensors
         self.adv_mask = np.zeros(adv_shape)
         self.adv_mask[np.arange(self.config.num_agents), :, :, np.arange(self.config.num_agents), :] = 1.0
+        self.adv_mask_tensor = torch.tensor(self.adv_mask, dtype=torch.float32)
         
         self.u_mask = np.zeros(u_shape)
         self.u_mask[np.arange(self.config.num_agents), :, :, np.arange(self.config.num_agents)] = 1.0
-        
-        with tf.variable_scope('adv_var'):
-            self.adv_var = tf.get_variable('adv_var', shape = adv_var_shape, dtype = tf.float32)
-            
-            
-        # Misreports
-        x_mis, misreports = self.get_misreports(self.x, self.adv_var, adv_shape)
-        
-        
+        self.u_mask_tensor = torch.tensor(self.u_mask, dtype=torch.float32)
 
-        # Input shapes for NNs
-        x_bundle = tf.expand_dims(tf.reduce_sum(self.x, axis = -1) + self.c, -1)
-        x_in = tf.concat([self.x, x_bundle], axis = -1)
-        
-        x_mis_in = tf.tile(x_in, [self.config.num_agents * self.config[self.mode].num_misreports, 1, 1])
-        
-        c_mis = tf.tile(self.c, [self.config.num_agents * self.config[self.mode].num_misreports, 1])
-        mis_bundle = tf.expand_dims(tf.reduce_sum(misreports, axis = -1) + c_mis, -1)
-        mis_in = tf.concat([misreports, mis_bundle], axis = -1)
-        
-        # Get mechanism for true valuation: Allocation and Payment
-        self.alloc, self.pay = self.net.inference(x_in)
-        
-        # Get mechanism for misreports: Allocation and Payment
-        a_mis, p_mis = self.net.inference(mis_in)
-        
-        # Utility
-        utility = self.compute_utility(x_in, self.alloc, self.pay)
-        utility_mis = self.compute_utility(x_mis_in, a_mis, p_mis)
-        
-        # Regret Computation
-        u_mis = tf.reshape(utility_mis, u_shape) * self.u_mask
-        utility_true = tf.tile(utility, [self.config.num_agents * self.config[self.mode].num_misreports, 1])
-        excess_from_utility = tf.nn.relu(tf.reshape(utility_mis - utility_true, u_shape) * self.u_mask)
-        rgt = tf.reduce_mean(tf.reduce_max(excess_from_utility, axis=(1, 3)), axis=1)
-    
-        #Metrics
-        revenue = self.compute_rev(self.pay)
-        rgt_mean = tf.reduce_mean(rgt)
-        irp_mean = tf.reduce_mean(tf.nn.relu(-utility))
+        # Adversarial variable (requires grad for optimization)
+        self.adv_var = nn.Parameter(torch.zeros(adv_var_shape, dtype=torch.float32))
 
-        # Variable Lists
-        alloc_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='alloc')
-        pay_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='pay')
-        var_list = alloc_vars + pay_vars
-
-
-        
-        if self.mode is "train":
+        if self.mode == "train":
 
             w_rgt_init_val = 0.0 if "w_rgt_init_val" not in self.config.train else self.config.train.w_rgt_init_val
 
-            with tf.variable_scope('lag_var'):
-                self.w_rgt = tf.Variable(np.ones(self.config.num_agents).astype(np.float32) * w_rgt_init_val, 'w_rgt')
+            # Lagrange multiplier for regret constraints
+            self.w_rgt = nn.Parameter(torch.ones(self.config.num_agents, dtype=torch.float32) * w_rgt_init_val)
 
-            update_rate = tf.Variable(self.config.train.update_rate, trainable = False)
-            self.increment_update_rate = update_rate.assign(update_rate + self.config.train.up_op_add)
-      
-            # Loss Functions
-            rgt_penalty = update_rate * tf.reduce_sum(tf.square(rgt)) / 2.0        
-            lag_loss = tf.reduce_sum(self.w_rgt * rgt)
+            # Update rate (non-trainable parameter)
+            self.update_rate = nn.Parameter(torch.tensor(self.config.train.learning_rate, dtype=torch.float32), requires_grad=False)
+            self.update_rate_add = self.config.train.up_op_add
+
+            # Weight decay parameter
+            wd = None if "wd" not in self.config.train else self.config.train.wd
+            
+            # Optimizers
+            learning_rate = self.config.train.learning_rate
+            self.opt_1 = optim.Adam([p for n, p in self.net.named_parameters() if 'w_a' in n or 'w_p' in n or 'b_a' in n or 'b_p' in n], lr=learning_rate, weight_decay=wd if wd else 0)
+            self.opt_2 = optim.Adam([self.adv_var], lr=self.config.train.gd_lr)
+            self.opt_3 = optim.SGD([self.w_rgt], lr=self.update_rate)
+
+            # Metrics names
+            self.metric_names = ["Revenue", "Regret", "Reg_Loss", "Lag_Loss", "Net_Loss", "w_rgt_mean", "update_rate"]
         
+        elif self.mode == "test":
 
+            # Optimizer for adversarial misreports during test
+            self.test_mis_opt = optim.Adam([self.adv_var], lr=self.config.test.gd_lr)
+
+            # Metrics names
+            self.metric_names = ["Revenue", "Regret", "IRP"]
+
+    def compute_metrics(self, x, c):
+        """Compute metrics given input x and complementarity c"""
+        # Convert numpy to tensor if needed
+        if isinstance(x, np.ndarray):
+            x_tensor = torch.tensor(x, dtype=torch.float32)
+        else:
+            x_tensor = x
+        if isinstance(c, np.ndarray):
+            c_tensor = torch.tensor(c, dtype=torch.float32)
+        else:
+            c_tensor = c
+
+        # Create bundle input: x_bundle = expand_dims(sum(x, axis=-1) + c, -1)
+        x_bundle = torch.sum(x_tensor, dim=-1, keepdim=True) + c_tensor.unsqueeze(-1)
+        x_in = torch.cat([x_tensor, x_bundle], dim=-1)
+
+        # Get mechanism for true valuation
+        alloc, pay = self.net.inference(x_in)
+        
+        # Get misreports
+        adv_shape = [self.config.num_agents, self.config[self.mode].num_misreports, self.config[self.mode].batch_size, self.config.num_agents, self.config.num_items]
+        x_mis, misreports = self.get_misreports(x_tensor, self.adv_var, adv_shape)
+        
+        # Create misreport bundle input
+        c_mis = c_tensor.repeat(self.config.num_agents * self.config[self.mode].num_misreports, 1)
+        mis_bundle = torch.sum(misreports, dim=-1, keepdim=True) + c_mis.unsqueeze(-1)
+        mis_in = torch.cat([misreports, mis_bundle], dim=-1)
+        
+        # Get mechanism for misreports
+        a_mis, p_mis = self.net.inference(mis_in)
+        
+        # Utility (use x_in for utility computation)
+        x_mis_in = x_in.repeat(self.config.num_agents * self.config[self.mode].num_misreports, 1, 1)
+        utility = self.compute_utility(x_in, alloc, pay)
+        utility_mis = self.compute_utility(x_mis_in, a_mis, p_mis)
+        
+        # Regret Computation
+        u_shape = [self.config.num_agents, self.config[self.mode].num_misreports, self.config[self.mode].batch_size, self.config.num_agents]
+        u_mis = (utility_mis.view(u_shape) * self.u_mask_tensor)
+        utility_true = utility.repeat(self.config.num_agents * self.config[self.mode].num_misreports, 1)
+        excess_from_utility = F.relu((utility_mis - utility_true).view(u_shape) * self.u_mask_tensor)
+        rgt = torch.mean(torch.max(excess_from_utility.view(excess_from_utility.shape[0], -1), dim=1)[0], dim=1)
+    
+        # Metrics
+        revenue = self.compute_rev(pay)
+        rgt_mean = torch.mean(rgt)
+        irp_mean = torch.mean(F.relu(-utility))
+
+        if self.mode == "train":
+            rgt_penalty = self.update_rate * torch.sum(rgt ** 2) / 2.0        
+            lag_loss = torch.sum(self.w_rgt * rgt)
+            
             loss_1 = -revenue + rgt_penalty + lag_loss
-            loss_2 = -tf.reduce_sum(u_mis)
+            loss_2 = -torch.sum(u_mis)
             loss_3 = -lag_loss
 
-            reg_losses = tf.get_collection('reg_losses')
-            if len(reg_losses) > 0:
-                reg_loss_mean = tf.reduce_mean(reg_losses)
-                loss_1 = loss_1 + reg_loss_mean
+            metrics = [revenue.item(), rgt_mean.item(), rgt_penalty.item(), lag_loss.item(), loss_1.item(), torch.mean(self.w_rgt).item(), self.update_rate.item()]
+        else:
+            metrics = [revenue.item(), rgt_mean.item(), irp_mean.item()]
 
-             
-            learning_rate = tf.Variable(self.config.train.learning_rate, trainable = False)
-        
-            # Optimizer
-            opt_1 = tf.train.AdamOptimizer(learning_rate)
-            opt_2 = tf.train.AdamOptimizer(self.config.train.gd_lr)
-            opt_3 = tf.train.GradientDescentOptimizer(update_rate)
+        return metrics, alloc, pay
 
-
-            # Train ops
-            self.train_op  = opt_1.minimize(loss_1, var_list = var_list)
-            self.train_mis_step = opt_2.minimize(loss_2, var_list = [self.adv_var])
-            self.lagrange_update    = opt_3.minimize(loss_3, var_list = [self.w_rgt])
-            
-            # Val ops
-            val_mis_opt = tf.train.AdamOptimizer(self.config.val.gd_lr)
-            self.val_mis_step = val_mis_opt.minimize(loss_2, var_list = [self.adv_var])       
-
-            # Reset ops
-            self.reset_train_mis_opt = tf.variables_initializer(opt_2.variables()) 
-            self.reset_val_mis_opt = tf.variables_initializer(val_mis_opt.variables())
-
-            # Metrics
-            self.metrics = [revenue, rgt_mean, rgt_penalty, lag_loss, loss_1, tf.reduce_mean(self.w_rgt), update_rate]
-            self.metric_names = ["Revenue", "Regret", "Reg_Loss", "Lag_Loss", "Net_Loss", "w_rgt_mean", "update_rate"]
-            
-            #Summary
-            tf.summary.scalar('revenue', revenue)
-            tf.summary.scalar('regret', rgt_mean)
-            tf.summary.scalar('reg_loss', rgt_penalty)
-            tf.summary.scalar('lag_loss', lag_loss)
-            tf.summary.scalar('net_loss', loss_1)
-            tf.summary.scalar('w_rgt_mean', tf.reduce_mean(self.w_rgt))
-            if len(reg_losses) > 0: tf.summary.scalar('reg_loss', reg_loss_mean)
-
-            self.merged = tf.summary.merge_all()
-            self.saver = tf.train.Saver(max_to_keep = self.config.train.max_to_keep)
-        
-        elif self.mode is "test":
-
-            loss = -tf.reduce_sum(u_mis)
-            test_mis_opt = tf.train.AdamOptimizer(self.config.test.gd_lr)
-            self.test_mis_step = test_mis_opt.minimize(loss, var_list = [self.adv_var])
-            self.reset_test_mis_opt = tf.variables_initializer(test_mis_opt.variables())
-
-            # Metrics
-            welfare = tf.reduce_mean(tf.reduce_sum(self.alloc * x_in, axis = (1,2)))
-            self.metrics = [revenue, rgt_mean, irp_mean]
-            self.metric_names = ["Revenue", "Regret", "IRP"]
-            self.saver = tf.train.Saver(var_list = var_list)
-            
-
-        # Helper ops post GD steps
-        self.assign_op = tf.assign(self.adv_var, self.adv_init)
-        self.get_clip_op(self.adv_var)
-        
     def train(self, generator):
         """
         Runs training
@@ -252,87 +217,179 @@ class Trainer(object):
         self.train_gen, self.val_gen = generator
         
         iter = self.config.train.restore_iter
-        sess = tf.InteractiveSession()
-        tf.global_variables_initializer().run()
-        train_writer = tf.summary.FileWriter(self.config.dir_name, sess.graph)
-        
+
         if iter > 0:
-            model_path = os.path.join(self.config.dir_name, 'model-' + str(iter))
-            self.saver.restore(sess, model_path)
+            model_path = os.path.join(self.config.dir_name, 'model-' + str(iter) + '.pt')
+            checkpoint = torch.load(model_path)
+            self.net.load_state_dict(checkpoint['net_state_dict'])
+            self.w_rgt.data = checkpoint['w_rgt']
+            self.update_rate.data = checkpoint['update_rate']
+            self.opt_1.load_state_dict(checkpoint['opt_1_state_dict'])
+            self.opt_2.load_state_dict(checkpoint['opt_2_state_dict'])
+            self.opt_3.load_state_dict(checkpoint['opt_3_state_dict'])
 
         if iter == 0:
             self.train_gen.save_data(0)
+            torch.save({
+                'net_state_dict': self.net.state_dict(),
+                'w_rgt': self.w_rgt.data,
+                'update_rate': self.update_rate.data,
+                'opt_1_state_dict': self.opt_1.state_dict(),
+                'opt_2_state_dict': self.opt_2.state_dict(),
+                'opt_3_state_dict': self.opt_3.state_dict(),
+                'iter': iter
+            }, os.path.join(self.config.dir_name, 'model-' + str(iter) + '.pt'))
 
         time_elapsed = 0.0
         while iter < (self.config.train.max_iter):
              
             # Get a mini-batch
             X, ADV, C, perm = next(self.train_gen.gen_func)
+            X_tensor = torch.tensor(X, dtype=torch.float32, requires_grad=False)
+            ADV_tensor = torch.tensor(ADV, dtype=torch.float32)
+            C_tensor = torch.tensor(C, dtype=torch.float32, requires_grad=False)
                 
-            if iter == 0: sess.run(self.lagrange_update, feed_dict = {self.x: X, self.c: C})
- 
+            if iter == 0:
+                # Initial Lagrange update
+                self.net.eval()
+                with torch.no_grad():
+                    metrics, _, _ = self.compute_metrics(X_tensor, C_tensor)
+                    rgt = torch.tensor([metrics[1]])  # Regret
+                    lag_loss = -torch.sum(self.w_rgt * rgt)
+                    self.opt_3.zero_grad()
+                    lag_loss.backward()
+                    self.opt_3.step()
 
+            self.net.train()
             tic = time.time()    
             
             # Get Best Mis-report
-            sess.run(self.assign_op, feed_dict = {self.adv_init: ADV})                                        
+            self.adv_var.data = ADV_tensor
             for _ in range(self.config.train.gd_iter):
-                sess.run(self.train_mis_step, feed_dict = {self.x: X, self.c: C})
-                sess.run(self.clip_op)
-            sess.run(self.reset_train_mis_opt)
+                self.opt_2.zero_grad()
+                # Compute loss_2: -sum(u_mis) where u_mis is utility from misreports
+                x_bundle = torch.sum(X_tensor, dim=-1, keepdim=True) + C_tensor.unsqueeze(-1)
+                x_in = torch.cat([X_tensor, x_bundle], dim=-1)
+                x_mis, misreports = self.get_misreports(X_tensor, self.adv_var, 
+                    [self.config.num_agents, self.config[self.mode].num_misreports, self.config[self.mode].batch_size, self.config.num_agents, self.config.num_items])
+                c_mis = C_tensor.repeat(self.config.num_agents * self.config[self.mode].num_misreports, 1)
+                mis_bundle = torch.sum(misreports, dim=-1, keepdim=True) + c_mis.unsqueeze(-1)
+                mis_in = torch.cat([misreports, mis_bundle], dim=-1)
+                a_mis, p_mis = self.net.inference(mis_in)
+                x_mis_in = x_in.repeat(self.config.num_agents * self.config[self.mode].num_misreports, 1, 1)
+                utility_mis = self.compute_utility(x_mis_in, a_mis, p_mis)
+                u_shape = [self.config.num_agents, self.config[self.mode].num_misreports, self.config[self.mode].batch_size, self.config.num_agents]
+                u_mis = (utility_mis.view(u_shape) * self.u_mask_tensor)
+                loss_2 = -torch.sum(u_mis)
+                loss_2.backward()
+                self.opt_2.step()
+                self.clip_op_lambda(self.adv_var)
+            # Reset optimizer state for adv_var (recreate optimizer)
+            self.opt_2 = optim.Adam([self.adv_var], lr=self.config.train.gd_lr)
 
-            if self.config.train.data is "fixed" and self.config.train.adv_reuse:
-                self.train_gen.update_adv(perm, sess.run(self.adv_var))
+            if self.config.train.data == "fixed" and self.config.train.adv_reuse:
+                self.train_gen.update_adv(perm, self.adv_var.detach().cpu().numpy())
 
             # Update network params
-            sess.run(self.train_op, feed_dict = {self.x: X, self.c: C})
+            self.opt_1.zero_grad()
+            x_bundle = torch.sum(X_tensor, dim=-1, keepdim=True) + C_tensor.unsqueeze(-1)
+            x_in = torch.cat([X_tensor, x_bundle], dim=-1)
+            alloc, pay = self.net.inference(x_in)
+            x_mis, misreports = self.get_misreports(X_tensor, self.adv_var, 
+                [self.config.num_agents, self.config[self.mode].num_misreports, self.config[self.mode].batch_size, self.config.num_agents, self.config.num_items])
+            c_mis = C_tensor.repeat(self.config.num_agents * self.config[self.mode].num_misreports, 1)
+            mis_bundle = torch.sum(misreports, dim=-1, keepdim=True) + c_mis.unsqueeze(-1)
+            mis_in = torch.cat([misreports, mis_bundle], dim=-1)
+            a_mis, p_mis = self.net.inference(mis_in)
+            utility = self.compute_utility(x_in, alloc, pay)
+            x_mis_in = x_in.repeat(self.config.num_agents * self.config[self.mode].num_misreports, 1, 1)
+            utility_mis = self.compute_utility(x_mis_in, a_mis, p_mis)
+            u_shape = [self.config.num_agents, self.config[self.mode].num_misreports, self.config[self.mode].batch_size, self.config.num_agents]
+            u_mis = (utility_mis.view(u_shape) * self.u_mask_tensor)
+            utility_true = utility.repeat(self.config.num_agents * self.config[self.mode].num_misreports, 1)
+            excess_from_utility = F.relu((utility_mis - utility_true).view(u_shape) * self.u_mask_tensor)
+            rgt = torch.mean(torch.max(excess_from_utility.view(excess_from_utility.shape[0], -1), dim=1)[0], dim=1)
+            revenue = self.compute_rev(pay)
+            rgt_penalty = self.update_rate * torch.sum(rgt ** 2) / 2.0        
+            lag_loss = torch.sum(self.w_rgt * rgt)
+            loss_1 = -revenue + rgt_penalty + lag_loss
+            loss_1.backward()
+            self.opt_1.step()
                 
-            if iter==0:
-                summary = sess.run(self.merged, feed_dict = {self.x: X, self.c: C})
-                train_writer.add_summary(summary, iter) 
-
             iter += 1
 
             # Run Lagrange Update
             if iter % self.config.train.update_frequency == 0:
-                sess.run(self.lagrange_update, feed_dict = {self.x: X, self.c: C})
-                
+                self.net.eval()
+                with torch.no_grad():
+                    metrics, _, _ = self.compute_metrics(X_tensor, C_tensor)
+                    rgt_val = torch.tensor([metrics[1]])
+                    loss_3 = -torch.sum(self.w_rgt * rgt_val)
+                    self.opt_3.zero_grad()
+                    loss_3.backward()
+                    self.opt_3.step()
 
             if iter % self.config.train.up_op_frequency == 0:
-                sess.run(self.increment_update_rate)
+                self.update_rate.data += self.update_rate_add
 
             toc = time.time()
             time_elapsed += (toc - tic)
                         
             if ((iter % self.config.train.save_iter) == 0) or (iter == self.config.train.max_iter): 
-                self.saver.save(sess, os.path.join(self.config.dir_name,'model'), global_step = iter) 
+                torch.save({
+                    'net_state_dict': self.net.state_dict(),
+                    'w_rgt': self.w_rgt.data,
+                    'update_rate': self.update_rate.data,
+                    'opt_1_state_dict': self.opt_1.state_dict(),
+                    'opt_2_state_dict': self.opt_2.state_dict(),
+                    'opt_3_state_dict': self.opt_3.state_dict(),
+                    'iter': iter
+                }, os.path.join(self.config.dir_name, 'model-' + str(iter) + '.pt'))
                 self.train_gen.save_data(iter)
 
             if (iter % self.config.train.print_iter) == 0:
                 # Train Set Stats
-                summary = sess.run(self.merged, feed_dict = {self.x: X, self.c: C})
-                train_writer.add_summary(summary, iter)
-                metric_vals = sess.run(self.metrics, feed_dict = {self.x: X, self.c: C})
-                fmt_vals = tuple([ item for tup in zip(self.metric_names, metric_vals) for item in tup ])
-                log_str = "TRAIN-BATCH Iter: %d, t = %.4f"%(iter, time_elapsed) + ", %s: %.6f"*len(self.metric_names)%fmt_vals
+                metrics, _, _ = self.compute_metrics(X_tensor, C_tensor)
+                fmt_vals = tuple([item for tup in zip(self.metric_names, metrics) for item in tup])
+                log_str = "TRAIN-BATCH Iter: %d, t = %.4f" % (iter, time_elapsed) + ", %s: %.6f" * len(self.metric_names) % fmt_vals
                 self.logger.info(log_str)
 
             if (iter % self.config.val.print_iter) == 0:
-                #Validation Set Stats
-                metric_tot = np.zeros(len(self.metric_names))         
-                for _ in range(self.config.val.num_batches):
-                    X, ADV, C, _ = next(self.val_gen.gen_func) 
-                    sess.run(self.assign_op, feed_dict = {self.adv_init: ADV})               
-                    for k in range(self.config.val.gd_iter):
-                        sess.run(self.val_mis_step, feed_dict = {self.x: X, self.c: C})
-                        sess.run(self.clip_op)
-                    sess.run(self.reset_val_mis_opt)                                   
-                    metric_vals = sess.run(self.metrics, feed_dict = {self.x: X, self.c: C})
-                    metric_tot += metric_vals
+                # Validation Set Stats
+                metric_tot = np.zeros(len(self.metric_names))
+                self.net.eval()
+                with torch.no_grad():
+                    for _ in range(self.config.val.num_batches):
+                        X, ADV, C, _ = next(self.val_gen.gen_func)
+                        X_tensor = torch.tensor(X, dtype=torch.float32)
+                        ADV_tensor = torch.tensor(ADV, dtype=torch.float32)
+                        C_tensor = torch.tensor(C, dtype=torch.float32)
+                        self.adv_var.data = ADV_tensor
+                        val_mis_opt = optim.Adam([self.adv_var], lr=self.config.val.gd_lr)
+                        for k in range(self.config.val.gd_iter):
+                            val_mis_opt.zero_grad()
+                            x_bundle = torch.sum(X_tensor, dim=-1, keepdim=True) + C_tensor.unsqueeze(-1)
+                            x_in = torch.cat([X_tensor, x_bundle], dim=-1)
+                            x_mis, misreports = self.get_misreports(X_tensor, self.adv_var, 
+                                [self.config.num_agents, self.config[self.mode].num_misreports, self.config[self.mode].batch_size, self.config.num_agents, self.config.num_items])
+                            c_mis = C_tensor.repeat(self.config.num_agents * self.config[self.mode].num_misreports, 1)
+                            mis_bundle = torch.sum(misreports, dim=-1, keepdim=True) + c_mis.unsqueeze(-1)
+                            mis_in = torch.cat([misreports, mis_bundle], dim=-1)
+                            a_mis, p_mis = self.net.inference(mis_in)
+                            x_mis_in = x_in.repeat(self.config.num_agents * self.config[self.mode].num_misreports, 1, 1)
+                            utility_mis = self.compute_utility(x_mis_in, a_mis, p_mis)
+                            u_shape = [self.config.num_agents, self.config[self.mode].num_misreports, self.config[self.mode].batch_size, self.config.num_agents]
+                            u_mis = (utility_mis.view(u_shape) * self.u_mask_tensor)
+                            loss_2 = -torch.sum(u_mis)
+                            loss_2.backward()
+                            val_mis_opt.step()
+                            self.clip_op_lambda(self.adv_var)
+                        metrics, _, _ = self.compute_metrics(X_tensor, C_tensor)
+                        metric_tot += metrics
                     
-                metric_tot = metric_tot/self.config.val.num_batches
-                fmt_vals = tuple([ item for tup in zip(self.metric_names, metric_tot) for item in tup ])
-                log_str = "VAL-%d"%(iter) + ", %s: %.6f"*len(self.metric_names)%fmt_vals
+                metric_tot = metric_tot / self.config.val.num_batches
+                fmt_vals = tuple([item for tup in zip(self.metric_names, metric_tot) for item in tup])
+                log_str = "VAL-%d" % (iter) + ", %s: %.6f" * len(self.metric_names) % fmt_vals
                 self.logger.info(log_str)
 
     def test(self, generator):
@@ -344,56 +401,73 @@ class Trainer(object):
         self.test_gen = generator
 
         iter = self.config.test.restore_iter
-        sess = tf.InteractiveSession()
-        tf.global_variables_initializer().run()
 
-        model_path = os.path.join(self.config.dir_name,'model-' + str(iter))
-        self.saver.restore(sess, model_path)
+        model_path = os.path.join(self.config.dir_name, 'model-' + str(iter) + '.pt')
+        checkpoint = torch.load(model_path)
+        # Load only network parameters (not adv_var, etc.)
+        net_state = {k: v for k, v in checkpoint['net_state_dict'].items() if 'w_a' in k or 'w_p' in k or 'b_a' in k or 'b_p' in k}
+        self.net.load_state_dict(net_state, strict=False)
 
-        #Test-set Stats
+        # Test-set Stats
         time_elapsed = 0
             
         metric_tot = np.zeros(len(self.metric_names))
 
         if self.config.test.save_output:
+            assert(hasattr(generator, "X")), "save_output option only allowed when config.test.data = Fixed or when X is passed as an argument to the generator"
             alloc_tst = np.zeros(self.test_gen.X.shape)
             pay_tst = np.zeros(self.test_gen.X.shape[:-1])
-                    
-        for i in range(self.config.test.num_batches):
-            tic = time.time()
-            X, ADV, C, perm = next(self.test_gen.gen_func)
-            sess.run(self.assign_op, feed_dict = {self.adv_init: ADV})
-                    
-            for k in range(self.config.test.gd_iter):
-                sess.run(self.test_mis_step, feed_dict = {self.x: X, self.c: C})
-                sess.run(self.clip_op)
 
-            sess.run(self.reset_test_mis_opt)        
-                
-            metric_vals = sess.run(self.metrics, feed_dict = {self.x: X, self.c: C})
-            
-            if self.config.test.save_output:
-                A, P = sess.run([self.alloc, self.pay], feed_dict = {self.x: X, self.c: C})
-                alloc_tst[perm, :, :] = A
-                pay_tst[perm, :] = P
-                    
-            metric_tot += metric_vals
-            toc = time.time()
-            time_elapsed += (toc - tic)
+        self.net.eval()
+        with torch.no_grad():
+            for i in range(self.config.test.num_batches):
+                tic = time.time()
+                X, ADV, C, perm = next(self.test_gen.gen_func)
+                X_tensor = torch.tensor(X, dtype=torch.float32)
+                ADV_tensor = torch.tensor(ADV, dtype=torch.float32)
+                C_tensor = torch.tensor(C, dtype=torch.float32)
+                self.adv_var.data = ADV_tensor
+                test_mis_opt = optim.Adam([self.adv_var], lr=self.config.test.gd_lr)
+                for k in range(self.config.test.gd_iter):
+                    test_mis_opt.zero_grad()
+                    x_bundle = torch.sum(X_tensor, dim=-1, keepdim=True) + C_tensor.unsqueeze(-1)
+                    x_in = torch.cat([X_tensor, x_bundle], dim=-1)
+                    x_mis, misreports = self.get_misreports(X_tensor, self.adv_var, 
+                        [self.config.num_agents, self.config[self.mode].num_misreports, self.config[self.mode].batch_size, self.config.num_agents, self.config.num_items])
+                    c_mis = C_tensor.repeat(self.config.num_agents * self.config[self.mode].num_misreports, 1)
+                    mis_bundle = torch.sum(misreports, dim=-1, keepdim=True) + c_mis.unsqueeze(-1)
+                    mis_in = torch.cat([misreports, mis_bundle], dim=-1)
+                    a_mis, p_mis = self.net.inference(mis_in)
+                    x_mis_in = x_in.repeat(self.config.num_agents * self.config[self.mode].num_misreports, 1, 1)
+                    utility_mis = self.compute_utility(x_mis_in, a_mis, p_mis)
+                    u_shape = [self.config.num_agents, self.config[self.mode].num_misreports, self.config[self.mode].batch_size, self.config.num_agents]
+                    u_mis = (utility_mis.view(u_shape) * self.u_mask_tensor)
+                    loss = -torch.sum(u_mis)
+                    loss.backward()
+                    test_mis_opt.step()
+                    self.clip_op_lambda(self.adv_var)
 
-            fmt_vals = tuple([ item for tup in zip(self.metric_names, metric_vals) for item in tup ])
-            log_str = "TEST BATCH-%d: t = %.4f"%(i, time_elapsed) + ", %s: %.6f"*len(self.metric_names)%fmt_vals
-            self.logger.info(log_str)
+                metrics, alloc, pay = self.compute_metrics(X_tensor, C_tensor)
+                    
+                if self.config.test.save_output:
+                    alloc_np = alloc.detach().cpu().numpy()
+                    pay_np = pay.detach().cpu().numpy()
+                    alloc_tst[perm, :, :] = alloc_np
+                    pay_tst[perm, :] = pay_np
+                        
+                metric_tot += metrics
+                toc = time.time()
+                time_elapsed += (toc - tic)
+
+                fmt_vals = tuple([item for tup in zip(self.metric_names, metrics) for item in tup])
+                log_str = "TEST BATCH-%d: t = %.4f" % (i, time_elapsed) + ", %s: %.6f" * len(self.metric_names) % fmt_vals
+                self.logger.info(log_str)
         
-        metric_tot = metric_tot/self.config.test.num_batches
-        fmt_vals = tuple([ item for tup in zip(self.metric_names, metric_tot) for item in tup ])
-        log_str = "TEST ALL-%d: t = %.4f"%(iter, time_elapsed) + ", %s: %.6f"*len(self.metric_names)%fmt_vals
+        metric_tot = metric_tot / self.config.test.num_batches
+        fmt_vals = tuple([item for tup in zip(self.metric_names, metric_tot) for item in tup])
+        log_str = "TEST ALL-%d: t = %.4f" % (iter, time_elapsed) + ", %s: %.6f" * len(self.metric_names) % fmt_vals
         self.logger.info(log_str)
             
         if self.config.test.save_output:
             np.save(os.path.join(self.config.dir_name, 'alloc_tst_' + str(iter)), alloc_tst)
             np.save(os.path.join(self.config.dir_name, 'pay_tst_' + str(iter)), pay_tst)
-            
-        
-        
-        
