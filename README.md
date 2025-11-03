@@ -52,6 +52,8 @@ setting\_no  |      setting\_name |
   (k) |  additive\_1x10\_uniform
   (l) |   additive\_1x2\_uniform\_04\_03
   (m) |   unit\_2x2\_uniform
+  (n) |   additive\_1x2\_beta\_11
+  (o) |   additive\_1x2\_gamma\_11
 
 
 ### RochetNet (Single Bidder Auctions)

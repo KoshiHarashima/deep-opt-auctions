@@ -85,6 +85,16 @@ elif setting == "unit_2x2_uniform":
     cfg = unit_2x2_uniform_config.cfg
     Generator = uniform_01_generator.Generator
     print("AA: ")
+
+elif setting == "additive_1x2_beta_11":
+    cfg = additive_1x2_beta_11_config.cfg
+    Generator = beta_11_generator.Generator
+    print("OPT: ")
+
+elif setting == "additive_1x2_gamma_11":
+    cfg = additive_1x2_gamma_11_config.cfg
+    Generator = gamma_11_generator.Generator
+    print("OPT: ")
     
 else:
     print("None selected")

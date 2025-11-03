@@ -147,54 +147,6 @@ class Trainer(object):
             # Metrics names
             self.metric_names = ["Revenue", "Regret", "IRP"]
 
-    def compute_metrics(self, x):
-        """Compute metrics given input x"""
-        # Convert numpy to tensor if needed
-        if isinstance(x, np.ndarray):
-            x_tensor = torch.tensor(x, dtype=torch.float32)
-        else:
-            x_tensor = x
-
-        # Get mechanism for true valuation
-        alloc, pay = self.net.inference(x_tensor)
-        
-        # Get misreports
-        adv_shape = [self.config.num_agents, self.config[self.mode].num_misreports, self.config[self.mode].batch_size, self.config.num_agents, self.config.num_items]
-        x_mis, misreports = self.get_misreports(x_tensor, self.adv_var, adv_shape)
-        
-        # Get mechanism for misreports
-        a_mis, p_mis = self.net.inference(misreports)
-        
-        # Utility
-        utility = self.compute_utility(x_tensor, alloc, pay)
-        utility_mis = self.compute_utility(x_mis, a_mis, p_mis)
-        
-        # Regret Computation
-        u_shape = [self.config.num_agents, self.config[self.mode].num_misreports, self.config[self.mode].batch_size, self.config.num_agents]
-        u_mis = (utility_mis.view(u_shape) * self.u_mask_tensor)
-        utility_true = utility.repeat(self.config.num_agents * self.config[self.mode].num_misreports, 1)
-        excess_from_utility = F.relu((utility_mis - utility_true).view(u_shape) * self.u_mask_tensor)
-        rgt = torch.mean(torch.max(excess_from_utility.view(excess_from_utility.shape[0], -1), dim=1)[0], dim=1)
-    
-        # Metrics
-        revenue = self.compute_rev(pay)
-        rgt_mean = torch.mean(rgt)
-        irp_mean = torch.mean(F.relu(-utility))
-
-        if self.mode == "train":
-            rgt_penalty = self.update_rate * torch.sum(rgt ** 2) / 2.0        
-            lag_loss = torch.sum(self.w_rgt * rgt)
-            
-            loss_1 = -revenue + rgt_penalty + lag_loss
-            loss_2 = -torch.sum(u_mis)
-            loss_3 = -lag_loss
-
-            metrics = [revenue.item(), rgt_mean.item(), rgt_penalty.item(), lag_loss.item(), loss_1.item(), torch.mean(self.w_rgt).item(), self.update_rate.item()]
-        else:
-            metrics = [revenue.item(), rgt_mean.item(), irp_mean.item()]
-
-        return metrics, alloc, pay
-
     def train(self, generator):
         """
         Runs training
@@ -237,13 +189,30 @@ class Trainer(object):
             if iter == 0:
                 # Initial Lagrange update
                 self.net.eval()
-                with torch.no_grad():
-                    metrics, _, _ = self.compute_metrics(X_tensor)
-                    rgt = torch.tensor([metrics[1]])  # Regret
-                    lag_loss = -torch.sum(self.w_rgt * rgt)
-                    self.opt_3.zero_grad()
-                    lag_loss.backward()
-                    self.opt_3.step()
+                # Get mechanism for true valuation
+                alloc, pay = self.net.inference(X_tensor)
+                
+                # Get misreports
+                adv_shape = [self.config.num_agents, self.config[self.mode].num_misreports, self.config[self.mode].batch_size, self.config.num_agents, self.config.num_items]
+                x_mis, misreports = self.get_misreports(X_tensor, self.adv_var, adv_shape)
+                
+                # Get mechanism for misreports
+                a_mis, p_mis = self.net.inference(misreports)
+                
+                # Utility
+                utility = self.compute_utility(X_tensor, alloc, pay)
+                utility_mis = self.compute_utility(x_mis, a_mis, p_mis)
+                
+                # Regret Computation
+                u_shape = [self.config.num_agents, self.config[self.mode].num_misreports, self.config[self.mode].batch_size, self.config.num_agents]
+                utility_true = utility.repeat(self.config.num_agents * self.config[self.mode].num_misreports, 1)
+                excess_from_utility = F.relu((utility_mis - utility_true).view(u_shape) * self.u_mask_tensor)
+                rgt = torch.mean(torch.max(excess_from_utility, dim=1)[0].max(dim=2)[0], dim=1)
+                
+                lag_loss = -torch.sum(self.w_rgt * rgt)
+                self.opt_3.zero_grad()
+                lag_loss.backward()
+                self.opt_3.step()
 
             self.net.train()
             tic = time.time()    
@@ -271,20 +240,28 @@ class Trainer(object):
 
             # Update network params
             self.opt_1.zero_grad()
-            metrics, _, _ = self.compute_metrics(X_tensor)
-            loss_1_val = metrics[4]  # Net_Loss
-            # Need to recompute loss for backward pass
+            # Get mechanism for true valuation
             alloc, pay = self.net.inference(X_tensor)
-            x_mis, misreports = self.get_misreports(X_tensor, self.adv_var, 
-                [self.config.num_agents, self.config[self.mode].num_misreports, self.config[self.mode].batch_size, self.config.num_agents, self.config.num_items])
+            
+            # Get misreports
+            adv_shape = [self.config.num_agents, self.config[self.mode].num_misreports, self.config[self.mode].batch_size, self.config.num_agents, self.config.num_items]
+            x_mis, misreports = self.get_misreports(X_tensor, self.adv_var, adv_shape)
+            
+            # Get mechanism for misreports
             a_mis, p_mis = self.net.inference(misreports)
+            
+            # Utility
             utility = self.compute_utility(X_tensor, alloc, pay)
             utility_mis = self.compute_utility(x_mis, a_mis, p_mis)
+            
+            # Regret Computation
             u_shape = [self.config.num_agents, self.config[self.mode].num_misreports, self.config[self.mode].batch_size, self.config.num_agents]
             u_mis = (utility_mis.view(u_shape) * self.u_mask_tensor)
             utility_true = utility.repeat(self.config.num_agents * self.config[self.mode].num_misreports, 1)
             excess_from_utility = F.relu((utility_mis - utility_true).view(u_shape) * self.u_mask_tensor)
-            rgt = torch.mean(torch.max(excess_from_utility.view(excess_from_utility.shape[0], -1), dim=1)[0], dim=1)
+            rgt = torch.mean(torch.max(excess_from_utility, dim=1)[0].max(dim=2)[0], dim=1)
+            
+            # Metrics
             revenue = self.compute_rev(pay)
             rgt_penalty = self.update_rate * torch.sum(rgt ** 2) / 2.0        
             lag_loss = torch.sum(self.w_rgt * rgt)
@@ -297,13 +274,35 @@ class Trainer(object):
             # Run Lagrange Update
             if iter % self.config.train.update_frequency == 0:
                 self.net.eval()
-                with torch.no_grad():
-                    metrics, _, _ = self.compute_metrics(X_tensor)
-                    rgt_val = torch.tensor([metrics[1]])
-                    loss_3 = -torch.sum(self.w_rgt * rgt_val)
-                    self.opt_3.zero_grad()
-                    loss_3.backward()
-                    self.opt_3.step()
+                # Get mechanism for true valuation
+                alloc, pay = self.net.inference(X_tensor)
+                
+                # Get misreports
+                adv_shape = [self.config.num_agents, self.config[self.mode].num_misreports, self.config[self.mode].batch_size, self.config.num_agents, self.config.num_items]
+                x_mis, misreports = self.get_misreports(X_tensor, self.adv_var, adv_shape)
+                
+                # Get mechanism for misreports
+                a_mis, p_mis = self.net.inference(misreports)
+                
+                # Utility
+                utility = self.compute_utility(X_tensor, alloc, pay)
+                utility_mis = self.compute_utility(x_mis, a_mis, p_mis)
+                
+                # Regret Computation
+                u_shape = [self.config.num_agents, self.config[self.mode].num_misreports, self.config[self.mode].batch_size, self.config.num_agents]
+                utility_true = utility.repeat(self.config.num_agents * self.config[self.mode].num_misreports, 1)
+                excess_from_utility = F.relu((utility_mis - utility_true).view(u_shape) * self.u_mask_tensor)
+                # TensorFlow: tf.reduce_max(excess_from_utility, axis=(1, 3))
+                # excess_from_utility shape: [num_agents, num_misreports, batch_size, num_agents]
+                # After max(dim=1): [num_agents, batch_size, num_agents], removing num_misreports axis
+                # After max(dim=2): [num_agents, batch_size], removing last num_agents axis (was axis=3 in original)
+                # After mean(dim=1): [num_agents], averaging over batch_size
+                rgt = torch.mean(torch.max(excess_from_utility, dim=1)[0].max(dim=2)[0], dim=1)
+                
+                loss_3 = -torch.sum(self.w_rgt * rgt)
+                self.opt_3.zero_grad()
+                loss_3.backward()
+                self.opt_3.step()
 
             if iter % self.config.train.up_op_frequency == 0:
                 self.update_rate.data += self.update_rate_add
@@ -325,7 +324,37 @@ class Trainer(object):
 
             if (iter % self.config.train.print_iter) == 0:
                 # Train Set Stats
-                metrics, _, _ = self.compute_metrics(X_tensor)
+                self.net.eval()
+                with torch.no_grad():
+                    # Get mechanism for true valuation
+                    alloc, pay = self.net.inference(X_tensor)
+                    
+                    # Get misreports
+                    adv_shape = [self.config.num_agents, self.config[self.mode].num_misreports, self.config[self.mode].batch_size, self.config.num_agents, self.config.num_items]
+                    x_mis, misreports = self.get_misreports(X_tensor, self.adv_var, adv_shape)
+                    
+                    # Get mechanism for misreports
+                    a_mis, p_mis = self.net.inference(misreports)
+                    
+                    # Utility
+                    utility = self.compute_utility(X_tensor, alloc, pay)
+                    utility_mis = self.compute_utility(x_mis, a_mis, p_mis)
+                    
+                    # Regret Computation
+                    u_shape = [self.config.num_agents, self.config[self.mode].num_misreports, self.config[self.mode].batch_size, self.config.num_agents]
+                    utility_true = utility.repeat(self.config.num_agents * self.config[self.mode].num_misreports, 1)
+                    excess_from_utility = F.relu((utility_mis - utility_true).view(u_shape) * self.u_mask_tensor)
+                    rgt = torch.mean(torch.max(excess_from_utility, dim=1)[0].max(dim=2)[0], dim=1)
+                    
+                    # Metrics
+                    revenue = self.compute_rev(pay)
+                    rgt_mean = torch.mean(rgt)
+                    rgt_penalty = self.update_rate * torch.sum(rgt ** 2) / 2.0        
+                    lag_loss = torch.sum(self.w_rgt * rgt)
+                    loss_1 = -revenue + rgt_penalty + lag_loss
+                    
+                    metrics = [revenue.item(), rgt_mean.item(), rgt_penalty.item(), lag_loss.item(), loss_1.item(), torch.mean(self.w_rgt).item(), self.update_rate.item()]
+                
                 fmt_vals = tuple([item for tup in zip(self.metric_names, metrics) for item in tup])
                 log_str = "TRAIN-BATCH Iter: %d, t = %.4f" % (iter, time_elapsed) + ", %s: %.6f" * len(self.metric_names) % fmt_vals
                 self.logger.info(log_str)
@@ -334,9 +363,8 @@ class Trainer(object):
                 # Validation Set Stats
                 metric_tot = np.zeros(len(self.metric_names))
                 self.net.eval()
-                with torch.no_grad():
-                    for _ in range(self.config.val.num_batches):
-                        X, ADV, _ = next(self.val_gen.gen_func)
+                for _ in range(self.config.val.num_batches):
+                    X, ADV, _ = next(self.val_gen.gen_func)
                     X_tensor = torch.tensor(X, dtype=torch.float32)
                     ADV_tensor = torch.tensor(ADV, dtype=torch.float32)
                     self.adv_var.data = ADV_tensor
@@ -353,9 +381,38 @@ class Trainer(object):
                         loss_2.backward()
                         val_mis_opt.step()
                         self.clip_op_lambda(self.adv_var)
-                    metrics, _, _ = self.compute_metrics(X_tensor)
-                    metric_tot += metrics
                     
+                    # Get mechanism for true valuation
+                    with torch.no_grad():
+                        alloc, pay = self.net.inference(X_tensor)
+                        
+                        # Get misreports
+                        adv_shape = [self.config.num_agents, self.config[self.mode].num_misreports, self.config[self.mode].batch_size, self.config.num_agents, self.config.num_items]
+                        x_mis, misreports = self.get_misreports(X_tensor, self.adv_var, adv_shape)
+                        
+                        # Get mechanism for misreports
+                        a_mis, p_mis = self.net.inference(misreports)
+                        
+                        # Utility
+                        utility = self.compute_utility(X_tensor, alloc, pay)
+                        utility_mis = self.compute_utility(x_mis, a_mis, p_mis)
+                        
+                        # Regret Computation
+                        u_shape = [self.config.num_agents, self.config[self.mode].num_misreports, self.config[self.mode].batch_size, self.config.num_agents]
+                        utility_true = utility.repeat(self.config.num_agents * self.config[self.mode].num_misreports, 1)
+                        excess_from_utility = F.relu((utility_mis - utility_true).view(u_shape) * self.u_mask_tensor)
+                        rgt = torch.mean(torch.max(excess_from_utility, dim=1)[0].max(dim=2)[0], dim=1)
+                        
+                        # Metrics
+                        revenue = self.compute_rev(pay)
+                        rgt_mean = torch.mean(rgt)
+                        rgt_penalty = self.update_rate * torch.sum(rgt ** 2) / 2.0        
+                        lag_loss = torch.sum(self.w_rgt * rgt)
+                        loss_1 = -revenue + rgt_penalty + lag_loss
+                        
+                        metrics = [revenue.item(), rgt_mean.item(), rgt_penalty.item(), lag_loss.item(), loss_1.item(), torch.mean(self.w_rgt).item(), self.update_rate.item()]
+                    metric_tot += metrics
+                
                 metric_tot = metric_tot / self.config.val.num_batches
                 fmt_vals = tuple([item for tup in zip(self.metric_names, metric_tot) for item in tup])
                 log_str = "VAL-%d" % (iter) + ", %s: %.6f" * len(self.metric_names) % fmt_vals
@@ -409,7 +466,37 @@ class Trainer(object):
                     test_mis_opt.step()
                     self.clip_op_lambda(self.adv_var)
 
-                metrics, alloc, pay = self.compute_metrics(X_tensor)
+                # Get mechanism for true valuation
+                alloc, pay = self.net.inference(X_tensor)
+                
+                # Get misreports
+                adv_shape = [self.config.num_agents, self.config[self.mode].num_misreports, self.config[self.mode].batch_size, self.config.num_agents, self.config.num_items]
+                x_mis, misreports = self.get_misreports(X_tensor, self.adv_var, adv_shape)
+                
+                # Get mechanism for misreports
+                a_mis, p_mis = self.net.inference(misreports)
+                
+                # Utility
+                utility = self.compute_utility(X_tensor, alloc, pay)
+                utility_mis = self.compute_utility(x_mis, a_mis, p_mis)
+                
+                # Regret Computation
+                u_shape = [self.config.num_agents, self.config[self.mode].num_misreports, self.config[self.mode].batch_size, self.config.num_agents]
+                utility_true = utility.repeat(self.config.num_agents * self.config[self.mode].num_misreports, 1)
+                excess_from_utility = F.relu((utility_mis - utility_true).view(u_shape) * self.u_mask_tensor)
+                # TensorFlow: tf.reduce_max(excess_from_utility, axis=(1, 3))
+                # excess_from_utility shape: [num_agents, num_misreports, batch_size, num_agents]
+                # After max(dim=1): [num_agents, batch_size, num_agents], removing num_misreports axis
+                # After max(dim=2): [num_agents, batch_size], removing last num_agents axis (was axis=3 in original)
+                # After mean(dim=1): [num_agents], averaging over batch_size
+                rgt = torch.mean(torch.max(excess_from_utility, dim=1)[0].max(dim=2)[0], dim=1)
+                
+                # Metrics
+                revenue = self.compute_rev(pay)
+                rgt_mean = torch.mean(rgt)
+                irp_mean = torch.mean(F.relu(-utility))
+                
+                metrics = [revenue.item(), rgt_mean.item(), irp_mean.item()]
                     
                 if self.config.test.save_output:
                     alloc_np = alloc.detach().cpu().numpy()

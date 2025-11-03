@@ -30,7 +30,7 @@ class BaseNet(nn.Module):
         self.config = config
         
         """ Set initializer """
-        if self.config.net.init is 'None' or self.config.net.init == 'None':
+        if self.config.net.init == 'None':
             self.init = None
         elif self.config.net.init == 'gu':
             self.init = nn.init.xavier_uniform_

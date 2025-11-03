@@ -92,3 +92,8 @@ def clip_op_triangle_01(x):
     """Clip tensor values to triangle region [0,1]x[0,1] with x1+x2<1"""
     clip_op_triangle_01_numpy(x)
     return x
+
+def clip_op_gamma_01(x):
+    """Clip tensor values to [0.0, 10.0] for Gamma distribution (reasonable upper bound)"""
+    x.data.clamp_(min=0.0, max=10.0)
+    return x

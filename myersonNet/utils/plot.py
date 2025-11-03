@@ -35,8 +35,8 @@ class PlotOneItem():
                         c = "r", linewidth = 2, linestyle = '--')
             
             j=i+1
-            pl.xlabel('$v_' + str(j) + '$')
-            pl.ylabel('$\phi_'+str(j)+'(v_'+str(j)+')$')
+            pl.xlabel(r'$v_' + str(j) + '$')
+            pl.ylabel(r'$\phi_'+str(j)+'(v_'+str(j)+')$')
             pl.title('Agent ' + str(j))
             
             pl.xlim((np.min(ss), np.max(ss)))
@@ -56,8 +56,8 @@ class PlotOneItem():
                 pl.xlim((np.min(ss), np.max(ss)))
             
             pl.legend(loc='best')            
-            pl.xlabel('$v$')
-            pl.ylabel('$\phi'+'(v'+')$')
+            pl.xlabel(r'$v$')
+            pl.ylabel(r'$\phi'+'(v'+')$')
             
             pl.savefig(dir_name + '/vv_total.pdf', bbox_inches = 'tight', pad_inches = 0.05)
             

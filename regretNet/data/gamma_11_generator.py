@@ -6,15 +6,13 @@ import numpy as np
 from base.base_generator import BaseGenerator
 
 class Generator(BaseGenerator):
-
-    def __init__(self, config, mode, X = None):
+    def __init__(self, config, mode, X = None, ADV = None):
         super(Generator, self).__init__(config, mode)
-        self.build_generator(X = X)
+        self.build_generator(X = X, ADV = ADV)
 
     def generate_random_X(self, shape):
-        X = np.zeros(shape)
-        size = (shape[0], shape[1])
-        X[:, :, 0] = np.random.uniform(4.0, 16.0, size = size)
-        X[:, :, 1] = np.random.uniform(4.0, 7.0, size = size)
-        return X
-    
+        return np.random.gamma(1, 1, size=shape)
+
+    def generate_random_ADV(self, shape):
+        return np.random.gamma(1, 1, size=shape)
+
