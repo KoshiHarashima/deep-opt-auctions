@@ -7,7 +7,10 @@ import sys
 import time
 import logging
 import numpy as np
-import tensorflow as tf
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
 
 
 class Trainer(object):
@@ -28,7 +31,9 @@ class Trainer(object):
             
         # Set Seeds for reproducibility
         np.random.seed(self.config[self.mode].seed)
-        tf.set_random_seed(self.config[self.mode].seed)
+        torch.manual_seed(self.config[self.mode].seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(self.config[self.mode].seed)
         
         # Init Logger
         self.init_logger()
@@ -36,11 +41,10 @@ class Trainer(object):
         # Init Net
         self.net = net
         
-        # Init TF-graph
+        # Init graph components (no TF graph, just setup optimizers)
         self.init_graph()
               
     def init_logger(self):
-
 
         logger = logging.getLogger()
         logger.setLevel(logging.INFO)
@@ -62,66 +66,55 @@ class Trainer(object):
     def compute_rev(self, pay):
         """ Given payment (pay), computes revenue
             Input params:
-                pay: [num_batches, num_agents]
+                pay: [num_batches]
             Output params:
                 revenue: scalar
         """
-        return tf.reduce_mean(pay)
+        return torch.mean(pay)
     
     def compute_utility(self, x, alloc, pay):
         """ Given input valuation (x), payment (pay) and allocation (alloc), computes utility
             Input params:
-                x: [num_batches, num_agents, num_items]
-                a: [num_batches, num_agents, num_items]
-                p: [num_batches, num_agents]
+                x: [num_batches, num_items]
+                a: [num_batches, num_items]
+                p: [num_batches]
             Output params:
-                utility: [num_batches, num_agents]
-        """
-        return tf.reduce_sum(tf.multiply(alloc, x), axis=-1) - pay
+                utility: [num_batches]
+            """
+        return torch.sum(alloc * x, dim=-1) - pay
 
 
     def init_graph(self):
-       
-        x_shape = [self.config[self.mode].batch_size, self.config.num_items]
+        # Weight decay parameter
+        wd = None if "wd" not in self.config.train else self.config.train.wd
         
-        # Placeholders
-        self.x = tf.placeholder(tf.float32, shape=x_shape, name='x')
-        
-        # Get mechanism for true valuation: Allocation and Payment
-        self.alloc, self.pay = self.net.inference(self.x)
-        
-        #Metrics
-        revenue = self.compute_rev(self.pay)
-        utility = self.compute_utility(self.x, self.alloc, self.pay) 
-        irp_mean = tf.reduce_mean(tf.nn.relu(-utility))
-
-        loss = -revenue
-        reg_losses = tf.get_collection('reg_losses')
-        if len(reg_losses) > 0:
-            reg_loss_mean = tf.reduce_mean(reg_losses)
-            loss += reg_loss_mean
-
-        learning_rate = tf.Variable(self.config.train.learning_rate, trainable = False)
-
         # Optimizer
-        opt = tf.train.AdamOptimizer(learning_rate)
+        learning_rate = self.config.train.learning_rate
+        self.opt = optim.Adam(self.net.parameters(), lr=learning_rate, weight_decay=wd if wd else 0)
 
-        # Train ops
-        self.train_op  = opt.minimize(loss)
-
-        # Metrics
-        self.metrics = [loss, revenue]
+        # Metrics names
         self.metric_names = ["Net_Loss", "Revenue"]
 
-        #Summary
-        tf.summary.scalar('revenue', revenue)
-        tf.summary.scalar('net_loss', loss)
-        if len(reg_losses) > 0: tf.summary.scalar('reg_loss', reg_loss_mean)
+    def compute_metrics(self, x):
+        """Compute metrics given input x"""
+        # Convert numpy to tensor if needed
+        if isinstance(x, np.ndarray):
+            x_tensor = torch.tensor(x, dtype=torch.float32)
+        else:
+            x_tensor = x
 
-        self.merged = tf.summary.merge_all()
-        self.saver = tf.train.Saver(max_to_keep = self.config.train.max_to_keep)
+        # Get mechanism for true valuation
+        alloc, pay = self.net.inference(x_tensor)
         
-        self.clip_op = tf.assign(self.net.alpha, tf.clip_by_value(self.net.alpha, 0.0, 1.0))
+        # Metrics
+        revenue = self.compute_rev(pay)
+        utility = self.compute_utility(x_tensor, alloc, pay) 
+        irp_mean = torch.mean(F.relu(-utility))
+
+        loss = -revenue
+        
+        metrics = [loss.item(), revenue.item()]
+        return metrics, alloc, pay
         
     def train(self, generator):
         """
@@ -131,17 +124,20 @@ class Trainer(object):
         self.train_gen, self.val_gen = generator
         
         iter = self.config.train.restore_iter
-        sess = tf.InteractiveSession()
-        tf.global_variables_initializer().run()
-        train_writer = tf.summary.FileWriter(self.config.dir_name, sess.graph)
-        
+
         if iter > 0:
-            model_path = os.path.join(self.config.dir_name, 'model-' + str(iter))
-            self.saver.restore(sess, model_path)
+            model_path = os.path.join(self.config.dir_name, 'model-' + str(iter) + '.pt')
+            checkpoint = torch.load(model_path)
+            self.net.load_state_dict(checkpoint['net_state_dict'])
+            self.opt.load_state_dict(checkpoint['opt_state_dict'])
 
         if iter == 0:
             self.train_gen.save_data()
-            self.saver.save(sess, os.path.join(self.config.dir_name,'model'), global_step = iter)
+            torch.save({
+                'net_state_dict': self.net.state_dict(),
+                'opt_state_dict': self.opt.state_dict(),
+                'iter': iter
+            }, os.path.join(self.config.dir_name, 'model-' + str(iter) + '.pt'))
 
         time_elapsed = 0.0       
         while iter < (self.config.train.max_iter):
@@ -150,13 +146,18 @@ class Trainer(object):
                 
             # Get a mini-batch
             X = next(self.train_gen.gen_func)
-            sess.run(self.train_op, feed_dict = {self.x: X})
-            #sess.run(self.clip_op)
+            X_tensor = torch.tensor(X, dtype=torch.float32, requires_grad=True)
             
-            if iter==0:
-                summary = sess.run(self.merged, feed_dict = {self.x: X})
-                train_writer.add_summary(summary, iter)
-                
+            self.net.train()
+            self.opt.zero_grad()
+            alloc, pay = self.net.inference(X_tensor)
+            revenue = self.compute_rev(pay)
+            loss = -revenue
+            loss.backward()
+            self.opt.step()
+            
+            # Clip alpha to [0, 1] (commented out in original, but keeping for compatibility)
+            # self.net.alpha.data.clamp_(min=0.0, max=1.0)
                 
             iter += 1
 
@@ -164,29 +165,34 @@ class Trainer(object):
             time_elapsed += (toc - tic)
                         
             if ((iter % self.config.train.save_iter) == 0) or (iter == self.config.train.max_iter): 
-                self.saver.save(sess, os.path.join(self.config.dir_name,'model'), global_step = iter)
+                torch.save({
+                    'net_state_dict': self.net.state_dict(),
+                    'opt_state_dict': self.opt.state_dict(),
+                    'iter': iter
+                }, os.path.join(self.config.dir_name, 'model-' + str(iter) + '.pt'))
 
             if (iter % self.config.train.print_iter) == 0:
                 # Train Set Stats
-                summary = sess.run(self.merged, feed_dict = {self.x: X})
-                train_writer.add_summary(summary, iter)
-                metric_vals = sess.run(self.metrics, feed_dict = {self.x: X})
-                fmt_vals = tuple([ item for tup in zip(self.metric_names, metric_vals) for item in tup ])
-                log_str = "TRAIN-BATCH Iter: %d, t = %.4f"%(iter, time_elapsed) + ", %s: %.6f"*len(self.metric_names)%fmt_vals
+                metrics, _, _ = self.compute_metrics(X_tensor.detach())
+                fmt_vals = tuple([item for tup in zip(self.metric_names, metrics) for item in tup])
+                log_str = "TRAIN-BATCH Iter: %d, t = %.4f" % (iter, time_elapsed) + ", %s: %.6f" * len(self.metric_names) % fmt_vals
                 self.logger.info(log_str)
 
             if (iter % self.config.val.print_iter) == 0:
-                #Validation Set Stats
-                metric_tot = np.zeros(len(self.metric_names))         
-                for _ in range(self.config.val.num_batches):
-                    X = next(self.val_gen.gen_func)                                   
-                    metric_vals = sess.run(self.metrics, feed_dict = {self.x: X})
-                    metric_tot += metric_vals
+                # Validation Set Stats
+                metric_tot = np.zeros(len(self.metric_names))
+                self.net.eval()
+                with torch.no_grad():
+                    for _ in range(self.config.val.num_batches):
+                        X = next(self.val_gen.gen_func)
+                        X_tensor = torch.tensor(X, dtype=torch.float32)
+                        metrics, _, _ = self.compute_metrics(X_tensor)
+                        metric_tot += metrics
                     
-                metric_tot = metric_tot/self.config.val.num_batches
-                fmt_vals = tuple([ item for tup in zip(self.metric_names, metric_tot) for item in tup ])
-                log_str = "VAL-%d"%(iter) + ", %s: %.6f"*len(self.metric_names)%fmt_vals
-                self.logger.info(log_str)
+                    metric_tot = metric_tot / self.config.val.num_batches
+                    fmt_vals = tuple([item for tup in zip(self.metric_names, metric_tot) for item in tup])
+                    log_str = "VAL-%d" % (iter) + ", %s: %.6f" * len(self.metric_names) % fmt_vals
+                    self.logger.info(log_str)
 
     def test(self, generator):
         """
@@ -197,13 +203,12 @@ class Trainer(object):
         self.test_gen = generator
 
         iter = self.config.test.restore_iter
-        sess = tf.InteractiveSession()
-        tf.global_variables_initializer().run()
 
-        model_path = os.path.join(self.config.dir_name,'model-' + str(iter))
-        self.saver.restore(sess, model_path)
+        model_path = os.path.join(self.config.dir_name, 'model-' + str(iter) + '.pt')
+        checkpoint = torch.load(model_path)
+        self.net.load_state_dict(checkpoint['net_state_dict'])
 
-        #Test-set Stats
+        # Test-set Stats
         time_elapsed = 0          
         metric_tot = np.zeros(len(self.metric_names))
 
@@ -211,33 +216,31 @@ class Trainer(object):
             assert(hasattr(generator, "X")), "save_output option only allowed when config.test.data = Fixed or when X is passed as an argument to the generator"
             alloc_tst = np.zeros(self.test_gen.X.shape)
             pay_tst = np.zeros(self.test_gen.X.shape[:-1])
-                    
-        for i in range(self.config.test.num_batches):
-            tic = time.time()
-            X = next(self.test_gen.gen_func)
-            metric_vals = sess.run(self.metrics, feed_dict = {self.x: X})          
-            if self.config.test.save_output:
-                A, P = sess.run([self.alloc, self.pay], feed_dict = {self.x:X})
-                perm =range(i * A.shape[0], (i + 1) * A.shape[0])
-                alloc_tst[perm, :] = A
-                pay_tst[perm] = P
-                    
-            metric_tot += metric_vals
-            toc = time.time()
-            time_elapsed += (toc - tic)
 
-            fmt_vals = tuple([ item for tup in zip(self.metric_names, metric_vals) for item in tup ])
-            #log_str = "TEST BATCH-%d: t = %.4f"%(i, time_elapsed) + ", %s: %.6f"*len(self.metric_names)%fmt_vals
-            #self.logger.info(log_str)
+        self.net.eval()
+        with torch.no_grad():
+            for i in range(self.config.test.num_batches):
+                tic = time.time()
+                X = next(self.test_gen.gen_func)
+                X_tensor = torch.tensor(X, dtype=torch.float32)
+                metrics, alloc, pay = self.compute_metrics(X_tensor)
+                
+                if self.config.test.save_output:
+                    alloc_np = alloc.detach().cpu().numpy()
+                    pay_np = pay.detach().cpu().numpy()
+                    perm = range(i * alloc_np.shape[0], (i + 1) * alloc_np.shape[0])
+                    alloc_tst[perm, :] = alloc_np
+                    pay_tst[perm] = pay_np
+                        
+                metric_tot += metrics
+                toc = time.time()
+                time_elapsed += (toc - tic)
         
-        metric_tot = metric_tot/self.config.test.num_batches
-        fmt_vals = tuple([ item for tup in zip(self.metric_names, metric_tot) for item in tup ])
-        log_str = "TEST ALL-%d: t = %.4f"%(iter, time_elapsed) + ", %s: %.6f"*len(self.metric_names)%fmt_vals
+        metric_tot = metric_tot / self.config.test.num_batches
+        fmt_vals = tuple([item for tup in zip(self.metric_names, metric_tot) for item in tup])
+        log_str = "TEST ALL-%d: t = %.4f" % (iter, time_elapsed) + ", %s: %.6f" * len(self.metric_names) % fmt_vals
         self.logger.info(log_str)
+        
         if self.config.test.save_output:
             np.save(os.path.join(self.config.dir_name, 'alloc_tst_' + str(iter)), alloc_tst)
             np.save(os.path.join(self.config.dir_name, 'pay_tst_' + str(iter)), pay_tst)
-            
-        
-        
-        
