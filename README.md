@@ -54,6 +54,7 @@ setting\_no  |      setting\_name |
   (m) |   unit\_2x2\_uniform
   (n) |   additive\_1x2\_beta\_11
   (o) |   additive\_1x2\_gamma\_11
+  (p) |   additive\_1x3\_constrained
 
 
 ### RochetNet (Single Bidder Auctions)
@@ -124,6 +125,13 @@ setting\_no  |      setting\_name |
 - **additive\_3x10\_uniform**: 3 additive bidders and 10 items, where bidders draw their value for each item from U\[0, 1\].
 
 - **additive\_5x10\_uniform**: 5 additive bidders and 10 items, where bidders draw their value for each item from U\[0, 1\].
+
+### Constrained Allocation (制約付き配分)
+- **additive\_1x3\_constrained**: 単一のadditive bidderと3財のオークション。財1と財2の価値はU\[0, 1\]に従い、財3の価値はU\[0, c\]（cはパラメータ、デフォルトは1.0）に従う。財3の配分確率には以下の制約が課される：
+  - 下界制約: 財3の配分確率 ≥ max(0, 財1の配分確率 + 財2の配分確率)
+  - 上界制約: 財3の配分確率 ≤ min(財1の配分確率, 財2の配分確率)
+  
+  この設定では、RegretNetに加えて配分確率の制約違反に対する罰則項が追加される。既存のregret罰則項と同様に、Lagrange乗数法を用いて制約違反を最小化する。実装は既存クラスを変更せず、新規クラス（`constrained_additive_net.py`、`constrained_trainer.py`など）として追加されている。
 
 
 ## Visualization

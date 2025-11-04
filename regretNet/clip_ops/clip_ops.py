@@ -97,3 +97,13 @@ def clip_op_gamma_01(x):
     """Clip tensor values to [0.0, 10.0] for Gamma distribution (reasonable upper bound)"""
     x.data.clamp_(min=0.0, max=10.0)
     return x
+
+def clip_op_constrained_3item(x, c=1.0):
+    """
+    財1,2は[0,1]、財3は[0,c]にクリップ
+    x shape: [num_misreports, batch_size, num_agents, num_items]
+    """
+    x[:, :, :, 0].data.clamp_(min=0.0, max=1.0)  # 財1
+    x[:, :, :, 1].data.clamp_(min=0.0, max=1.0)  # 財2
+    x[:, :, :, 2].data.clamp_(min=0.0, max=c)    # 財3
+    return x

@@ -126,6 +126,13 @@ elif setting == "additive_1x2_gamma_11":
     Generator = gamma_11_generator.Generator
     clip_op_lambda = (lambda x: clip_op_gamma_01(x))
     Trainer = trainer.Trainer
+
+elif setting == "additive_1x3_constrained":
+    cfg = additive_1x3_constrained_config.cfg
+    Net = constrained_additive_net.Net
+    Generator = constrained_3item_generator.Generator
+    clip_op_lambda = (lambda x: clip_op_constrained_3item(x, c=cfg.c))
+    Trainer = constrained_trainer.Trainer
     
 else:
     print("None selected")
