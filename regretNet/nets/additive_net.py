@@ -100,9 +100,12 @@ class Net(BaseNet):
         """
         Inference 
         """
-        # Ensure x is a torch tensor
+        # Ensure x is a torch tensor and move to the same device as the model
         if not isinstance(x, torch.Tensor):
             x = torch.tensor(x, dtype=torch.float32)
+        
+        # Move input to the same device as model parameters
+        x = x.to(next(self.parameters()).device)
 
         x_in = x.view(-1, self.config.num_agents * self.config.num_items)
 

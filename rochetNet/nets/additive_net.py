@@ -53,9 +53,12 @@ class Net(nn.Module):
         """
         Inference
         """
-        # Ensure x is a torch tensor
+        # Ensure x is a torch tensor and move to the same device as the model
         if not isinstance(x, torch.Tensor):
             x = torch.tensor(x, dtype=torch.float32)
+        
+        # Move input to the same device as model parameters
+        x = x.to(self.alpha.device)
 
         # Pad: add one more column and row
         # padding_w: [[0, 0], [0, 1]] -> pad last dimension with 0 on left, 1 on right
@@ -72,6 +75,7 @@ class Net(nn.Module):
             # One-hot encoding of argmax
             max_indices = torch.argmax(utility, dim=-1)
             one_hot = F.one_hot(max_indices, num_classes=self.config.net.num_hidden_units + 1).float()
+            one_hot = one_hot.to(self.alpha.device)
             a = torch.matmul(one_hot, w.t())
         
         p = torch.sum(a * x, dim=-1) - torch.max(utility, dim=-1)[0]

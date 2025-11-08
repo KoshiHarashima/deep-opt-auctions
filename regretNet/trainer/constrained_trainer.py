@@ -46,18 +46,18 @@ class Trainer(BaseTrainer):
             # 制約違反用のLagrange乗数
             w_constraint_init_val = 5.0 if "w_constraint_init_val" not in self.config.train else self.config.train.w_constraint_init_val
             self.w_constraint = nn.Parameter(
-                torch.ones(self.config.num_agents, dtype=torch.float32) * w_constraint_init_val
+                torch.ones(self.config.num_agents, dtype=torch.float32, device=self.device) * w_constraint_init_val
             )
             
             # 制約違反用の更新レート
             constraint_update_rate = 1.0 if "constraint_update_rate" not in self.config.train else self.config.train.constraint_update_rate
             self.constraint_update_rate = nn.Parameter(
-                torch.tensor(constraint_update_rate, dtype=torch.float32),
+                torch.tensor(constraint_update_rate, dtype=torch.float32, device=self.device),
                 requires_grad=False
             )
             
             # 制約違反用のオプティマイザー
-            self.opt_constraint = optim.SGD([self.w_constraint], lr=self.constraint_update_rate)
+            self.opt_constraint = optim.SGD([self.w_constraint], lr=self.constraint_update_rate.item())
             
             # メトリクス名に追加
             self.metric_names = [
@@ -76,14 +76,14 @@ class Trainer(BaseTrainer):
         
         if iter > 0:
             model_path = os.path.join(self.config.dir_name, 'model-' + str(iter) + '.pt')
-            checkpoint = torch.load(model_path)
+            checkpoint = torch.load(model_path, map_location=self.device)
             self.net.load_state_dict(checkpoint['net_state_dict'])
-            self.w_rgt.data = checkpoint['w_rgt']
-            self.update_rate.data = checkpoint['update_rate']
+            self.w_rgt.data = checkpoint['w_rgt'].to(self.device)
+            self.update_rate.data = checkpoint['update_rate'].to(self.device)
             if 'w_constraint' in checkpoint:
-                self.w_constraint.data = checkpoint['w_constraint']
+                self.w_constraint.data = checkpoint['w_constraint'].to(self.device)
             if 'constraint_update_rate' in checkpoint:
-                self.constraint_update_rate.data = checkpoint['constraint_update_rate']
+                self.constraint_update_rate.data = checkpoint['constraint_update_rate'].to(self.device)
             self.opt_1.load_state_dict(checkpoint['opt_1_state_dict'])
             self.opt_2.load_state_dict(checkpoint['opt_2_state_dict'])
             self.opt_3.load_state_dict(checkpoint['opt_3_state_dict'])
@@ -111,8 +111,8 @@ class Trainer(BaseTrainer):
             
             # Get a mini-batch
             X, ADV, perm = next(self.train_gen.gen_func)
-            X_tensor = torch.tensor(X, dtype=torch.float32, requires_grad=False)
-            ADV_tensor = torch.tensor(ADV, dtype=torch.float32)
+            X_tensor = torch.from_numpy(X).to(self.device).float()
+            ADV_tensor = torch.from_numpy(ADV).to(self.device).float()
                 
             if iter == 0:
                 # Initial Lagrange update (regret and constraint)
@@ -148,7 +148,7 @@ class Trainer(BaseTrainer):
             tic = time.time()
             
             # Get Best Mis-report
-            self.adv_var.data = ADV_tensor
+            self.adv_var.data.copy_(ADV_tensor)
             for _ in range(self.config.train.gd_iter):
                 self.opt_2.zero_grad()
                 x_mis, misreports = self.get_misreports(X_tensor, self.adv_var, 
@@ -231,6 +231,11 @@ class Trainer(BaseTrainer):
             
             if iter % self.config.train.up_op_frequency == 0:
                 self.update_rate.data += self.update_rate_add
+                # Update optimizer learning rates
+                for param_group in self.opt_3.param_groups:
+                    param_group['lr'] = self.update_rate.item()
+                for param_group in self.opt_constraint.param_groups:
+                    param_group['lr'] = self.constraint_update_rate.item()
             
             toc = time.time()
             time_elapsed += (toc - tic)
@@ -297,9 +302,9 @@ class Trainer(BaseTrainer):
                 self.net.eval()
                 for _ in range(self.config.val.num_batches):
                     X, ADV, _ = next(self.val_gen.gen_func)
-                    X_tensor = torch.tensor(X, dtype=torch.float32)
-                    ADV_tensor = torch.tensor(ADV, dtype=torch.float32)
-                    self.adv_var.data = ADV_tensor
+                    X_tensor = torch.from_numpy(X).to(self.device).float()
+                    ADV_tensor = torch.from_numpy(ADV).to(self.device).float()
+                    self.adv_var.data.copy_(ADV_tensor)
                     val_mis_opt = optim.Adam([self.adv_var], lr=self.config.val.gd_lr)
                     for k in range(self.config.val.gd_iter):
                         val_mis_opt.zero_grad()

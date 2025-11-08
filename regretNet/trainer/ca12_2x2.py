@@ -35,11 +35,15 @@ class Trainer(object):
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(self.config[self.mode].seed)
         
+        # Set device
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        
         # Init Logger
         self.init_logger()
 
         # Init Net
         self.net = net
+        self.net.to(self.device)
         
         ## Clip Op
         self.clip_op_lambda = clip_op_lambda
@@ -107,24 +111,24 @@ class Trainer(object):
         # Create masks as tensors
         self.adv_mask = np.zeros(adv_shape)
         self.adv_mask[np.arange(self.config.num_agents), :, :, np.arange(self.config.num_agents), :] = 1.0
-        self.adv_mask_tensor = torch.tensor(self.adv_mask, dtype=torch.float32)
+        self.adv_mask_tensor = torch.tensor(self.adv_mask, dtype=torch.float32).to(self.device)
         
         self.u_mask = np.zeros(u_shape)
         self.u_mask[np.arange(self.config.num_agents), :, :, np.arange(self.config.num_agents)] = 1.0
-        self.u_mask_tensor = torch.tensor(self.u_mask, dtype=torch.float32)
+        self.u_mask_tensor = torch.tensor(self.u_mask, dtype=torch.float32).to(self.device)
 
         # Adversarial variable (requires grad for optimization)
-        self.adv_var = nn.Parameter(torch.zeros(adv_var_shape, dtype=torch.float32))
+        self.adv_var = nn.Parameter(torch.zeros(adv_var_shape, dtype=torch.float32).to(self.device))
 
         if self.mode == "train":
 
             w_rgt_init_val = 0.0 if "w_rgt_init_val" not in self.config.train else self.config.train.w_rgt_init_val
 
             # Lagrange multiplier for regret constraints
-            self.w_rgt = nn.Parameter(torch.ones(self.config.num_agents, dtype=torch.float32) * w_rgt_init_val)
+            self.w_rgt = nn.Parameter(torch.ones(self.config.num_agents, dtype=torch.float32, device=self.device) * w_rgt_init_val)
 
             # Update rate (non-trainable parameter)
-            self.update_rate = nn.Parameter(torch.tensor(self.config.train.learning_rate, dtype=torch.float32), requires_grad=False)
+            self.update_rate = nn.Parameter(torch.tensor(self.config.train.learning_rate, dtype=torch.float32, device=self.device), requires_grad=False)
             self.update_rate_add = self.config.train.up_op_add
 
             # Weight decay parameter
@@ -134,7 +138,7 @@ class Trainer(object):
             learning_rate = self.config.train.learning_rate
             self.opt_1 = optim.Adam([p for n, p in self.net.named_parameters() if 'w_a' in n or 'w_p' in n or 'b_a' in n or 'b_p' in n], lr=learning_rate, weight_decay=wd if wd else 0)
             self.opt_2 = optim.Adam([self.adv_var], lr=self.config.train.gd_lr)
-            self.opt_3 = optim.SGD([self.w_rgt], lr=self.update_rate)
+            self.opt_3 = optim.SGD([self.w_rgt], lr=self.update_rate.item())
 
             # Metrics names
             self.metric_names = ["Revenue", "Regret", "Reg_Loss", "Lag_Loss", "Net_Loss", "w_rgt_mean", "update_rate"]
@@ -151,13 +155,13 @@ class Trainer(object):
         """Compute metrics given input x and complementarity c"""
         # Convert numpy to tensor if needed
         if isinstance(x, np.ndarray):
-            x_tensor = torch.tensor(x, dtype=torch.float32)
+            x_tensor = torch.from_numpy(x).to(self.device).float()
         else:
-            x_tensor = x
+            x_tensor = x.to(self.device) if x.device != self.device else x
         if isinstance(c, np.ndarray):
-            c_tensor = torch.tensor(c, dtype=torch.float32)
+            c_tensor = torch.from_numpy(c).to(self.device).float()
         else:
-            c_tensor = c
+            c_tensor = c.to(self.device) if c.device != self.device else c
 
         # Create bundle input: x_bundle = expand_dims(sum(x, axis=-1) + c, -1)
         x_bundle = torch.sum(x_tensor, dim=-1, keepdim=True) + c_tensor.unsqueeze(-1)
@@ -220,10 +224,10 @@ class Trainer(object):
 
         if iter > 0:
             model_path = os.path.join(self.config.dir_name, 'model-' + str(iter) + '.pt')
-            checkpoint = torch.load(model_path)
+            checkpoint = torch.load(model_path, map_location=self.device)
             self.net.load_state_dict(checkpoint['net_state_dict'])
-            self.w_rgt.data = checkpoint['w_rgt']
-            self.update_rate.data = checkpoint['update_rate']
+            self.w_rgt.data = checkpoint['w_rgt'].to(self.device)
+            self.update_rate.data = checkpoint['update_rate'].to(self.device)
             self.opt_1.load_state_dict(checkpoint['opt_1_state_dict'])
             self.opt_2.load_state_dict(checkpoint['opt_2_state_dict'])
             self.opt_3.load_state_dict(checkpoint['opt_3_state_dict'])
@@ -245,9 +249,9 @@ class Trainer(object):
              
             # Get a mini-batch
             X, ADV, C, perm = next(self.train_gen.gen_func)
-            X_tensor = torch.tensor(X, dtype=torch.float32, requires_grad=False)
-            ADV_tensor = torch.tensor(ADV, dtype=torch.float32)
-            C_tensor = torch.tensor(C, dtype=torch.float32, requires_grad=False)
+            X_tensor = torch.from_numpy(X).to(self.device).float()
+            ADV_tensor = torch.from_numpy(ADV).to(self.device).float()
+            C_tensor = torch.from_numpy(C).to(self.device).float()
                 
             if iter == 0:
                 # Initial Lagrange update
@@ -264,7 +268,7 @@ class Trainer(object):
             tic = time.time()    
             
             # Get Best Mis-report
-            self.adv_var.data = ADV_tensor
+            self.adv_var.data.copy_(ADV_tensor)
             for _ in range(self.config.train.gd_iter):
                 self.opt_2.zero_grad()
                 # Compute loss_2: -sum(u_mis) where u_mis is utility from misreports
@@ -331,6 +335,9 @@ class Trainer(object):
 
             if iter % self.config.train.up_op_frequency == 0:
                 self.update_rate.data += self.update_rate_add
+                # Update optimizer learning rate
+                for param_group in self.opt_3.param_groups:
+                    param_group['lr'] = self.update_rate.item()
 
             toc = time.time()
             time_elapsed += (toc - tic)
@@ -361,10 +368,10 @@ class Trainer(object):
                 with torch.no_grad():
                     for _ in range(self.config.val.num_batches):
                         X, ADV, C, _ = next(self.val_gen.gen_func)
-                        X_tensor = torch.tensor(X, dtype=torch.float32)
-                        ADV_tensor = torch.tensor(ADV, dtype=torch.float32)
-                        C_tensor = torch.tensor(C, dtype=torch.float32)
-                        self.adv_var.data = ADV_tensor
+                        X_tensor = torch.from_numpy(X).to(self.device).float()
+                        ADV_tensor = torch.from_numpy(ADV).to(self.device).float()
+                        C_tensor = torch.from_numpy(C).to(self.device).float()
+                        self.adv_var.data.copy_(ADV_tensor)
                         val_mis_opt = optim.Adam([self.adv_var], lr=self.config.val.gd_lr)
                         for k in range(self.config.val.gd_iter):
                             val_mis_opt.zero_grad()
@@ -403,7 +410,7 @@ class Trainer(object):
         iter = self.config.test.restore_iter
 
         model_path = os.path.join(self.config.dir_name, 'model-' + str(iter) + '.pt')
-        checkpoint = torch.load(model_path)
+        checkpoint = torch.load(model_path, map_location=self.device)
         # Load only network parameters (not adv_var, etc.)
         net_state = {k: v for k, v in checkpoint['net_state_dict'].items() if 'w_a' in k or 'w_p' in k or 'b_a' in k or 'b_p' in k}
         self.net.load_state_dict(net_state, strict=False)
@@ -422,10 +429,10 @@ class Trainer(object):
         for i in range(self.config.test.num_batches):
             tic = time.time()
             X, ADV, C, perm = next(self.test_gen.gen_func)
-            X_tensor = torch.tensor(X, dtype=torch.float32)
-            ADV_tensor = torch.tensor(ADV, dtype=torch.float32)
-            C_tensor = torch.tensor(C, dtype=torch.float32)
-            self.adv_var.data = ADV_tensor
+            X_tensor = torch.from_numpy(X).to(self.device).float()
+            ADV_tensor = torch.from_numpy(ADV).to(self.device).float()
+            C_tensor = torch.from_numpy(C).to(self.device).float()
+            self.adv_var.data.copy_(ADV_tensor)
             test_mis_opt = optim.Adam([self.adv_var], lr=self.config.test.gd_lr)
             for k in range(self.config.test.gd_iter):
                 test_mis_opt.zero_grad()

@@ -35,11 +35,15 @@ class Trainer(object):
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(self.config[self.mode].seed)
         
+        # Set device
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        
         # Init Logger
         self.init_logger()
 
         # Init Net
         self.net = net
+        self.net.to(self.device)
         
         # Init graph components (no TF graph, just setup optimizers)
         self.init_graph()
@@ -99,9 +103,9 @@ class Trainer(object):
         """Compute metrics given input x"""
         # Convert numpy to tensor if needed
         if isinstance(x, np.ndarray):
-            x_tensor = torch.tensor(x, dtype=torch.float32)
+            x_tensor = torch.from_numpy(x).to(self.device).float()
         else:
-            x_tensor = x
+            x_tensor = x.to(self.device) if x.device != self.device else x
 
         # Get mechanism for true valuation
         alloc, pay = self.net.inference(x_tensor)
@@ -127,7 +131,7 @@ class Trainer(object):
 
         if iter > 0:
             model_path = os.path.join(self.config.dir_name, 'model-' + str(iter) + '.pt')
-            checkpoint = torch.load(model_path)
+            checkpoint = torch.load(model_path, map_location=self.device)
             self.net.load_state_dict(checkpoint['net_state_dict'])
             self.opt.load_state_dict(checkpoint['opt_state_dict'])
 
@@ -146,7 +150,7 @@ class Trainer(object):
                 
             # Get a mini-batch
             X = next(self.train_gen.gen_func)
-            X_tensor = torch.tensor(X, dtype=torch.float32, requires_grad=True)
+            X_tensor = torch.from_numpy(X).to(self.device).float().requires_grad_(True)
             
             self.net.train()
             self.opt.zero_grad()
@@ -185,7 +189,7 @@ class Trainer(object):
                 with torch.no_grad():
                     for _ in range(self.config.val.num_batches):
                         X = next(self.val_gen.gen_func)
-                        X_tensor = torch.tensor(X, dtype=torch.float32)
+                        X_tensor = torch.from_numpy(X).to(self.device).float()
                         metrics, _, _ = self.compute_metrics(X_tensor)
                         metric_tot += metrics
                     
@@ -205,7 +209,7 @@ class Trainer(object):
         iter = self.config.test.restore_iter
 
         model_path = os.path.join(self.config.dir_name, 'model-' + str(iter) + '.pt')
-        checkpoint = torch.load(model_path)
+        checkpoint = torch.load(model_path, map_location=self.device)
         self.net.load_state_dict(checkpoint['net_state_dict'])
 
         # Test-set Stats
@@ -222,7 +226,7 @@ class Trainer(object):
             for i in range(self.config.test.num_batches):
                 tic = time.time()
                 X = next(self.test_gen.gen_func)
-                X_tensor = torch.tensor(X, dtype=torch.float32)
+                X_tensor = torch.from_numpy(X).to(self.device).float()
                 metrics, alloc, pay = self.compute_metrics(X_tensor)
                 
                 if self.config.test.save_output:
