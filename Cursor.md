@@ -134,10 +134,9 @@
 ## 環境概要
 
 - 目的: 深層学習トレーニング
-- 接続: Cursor → Remote SSH → AWS g4.xlarge (Amazon Linux 2)
+- 接続: CPU
 - Python: 3.12.8
 - フレームワーク: PyTorch
-- GPUドライバ: 事前インストール済み
 
 ## プロジェクト概要
 
@@ -197,9 +196,6 @@ python run_baseline.py [setting_name]
 - `run_test.py` は非常に時間がかかる場合があります
   - `num_misreports = 1000`、`gd_iter = 2000` などの設定により、1バッチあたり約6分かかる
   - 100バッチの場合、約10時間かかる可能性がある
-
-### GPU対応
-- 現在のコードは環境概要で示されているように, GPUで動作する. 
 
 ## 開発メモ
 - 各プロジェクトごとに .venv を作成
