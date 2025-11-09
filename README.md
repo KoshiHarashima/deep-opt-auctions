@@ -105,7 +105,9 @@ setting\_no  |      setting\_name |
   (h)   |   additive\_1x2\_beta\_11
   (i)   |   additive\_1x2\_gamma\_11
   (j)   |   additive\_1x2\_gamma\_21
-  (k)   |   additive\_1x2\_gamma\_31
+  (k)   |   additive\_1x2\_gamma\_22
+  (l)   |   additive\_1x2\_gamma\_31
+  (m)   |   additive\_1x2\_gamma\_41
 
 #### Data Saving for Restore
 All config files have `save_data = True` by default, which saves training data (`X.npy`) to enable checkpoint resumption and visualization.
@@ -120,7 +122,9 @@ Visualization notebooks are available for all settings:
 - `visualize_additive_1x2_beta_11.ipynb`
 - `visualize_additive_1x2_gamma_11.ipynb`
 - `visualize_additive_1x2_gamma_21.ipynb`
+- `visualize_additive_1x2_gamma_22.ipynb`
 - `visualize_additive_1x2_gamma_31.ipynb`
+- `visualize_additive_1x2_gamma_41.ipynb`
   
 ### MyersonNet (Single Item Auctions)
   
@@ -162,7 +166,11 @@ setting\_no  |      setting\_name |
 
 - **additive\_1x2\_gamma\_21**: A single additive bidder with preferences over two items, where the item values are drawn from Gamma(k=2, θ=1) (mean=2, variance=2).
 
+- **additive\_1x2\_gamma\_22**: A single additive bidder with preferences over two items, where the item values are drawn from Gamma(k=2, θ=2) (mean=4, variance=8).
+
 - **additive\_1x2\_gamma\_31**: A single additive bidder with preferences over two items, where the item values are drawn from Gamma(k=3, θ=1) (mean=3, variance=3).
+
+- **additive\_1x2\_gamma\_41**: A single additive bidder with preferences over two items, where the item values are drawn from Gamma(k=4, θ=1) (mean=4, variance=4).
 
 ### Multiple Bidders
 - **additive\_2x2\_uniform**: Two additive bidders and two items, where bidders draw their value for each item from U\[0, 1\]. 
