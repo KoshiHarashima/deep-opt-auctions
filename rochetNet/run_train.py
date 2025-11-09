@@ -56,6 +56,30 @@ elif setting == "unit_1x2_uniform_23":
     Net = unit_net.Net
     Generator = uniform_23_generator.Generator
     Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_gamma_11":
+    cfg = additive_1x2_gamma_11_config.cfg
+    Net = additive_net.Net
+    Generator = gamma_11_generator.Generator
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_gamma_21":
+    cfg = additive_1x2_gamma_21_config.cfg
+    Net = additive_net.Net
+    Generator = gamma_21_generator.Generator
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_gamma_31":
+    cfg = additive_1x2_gamma_31_config.cfg
+    Net = additive_net.Net
+    Generator = gamma_31_generator.Generator
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_beta_11":
+    cfg = additive_1x2_beta_11_config.cfg
+    Net = additive_net.Net
+    Generator = beta_11_generator.Generator
+    Trainer = trainer.Trainer
     
 else:
     print("None selected")

@@ -14,16 +14,13 @@ Implementation of "Optimal Auctions through Deep Learning" (https://arxiv.org/pd
 #### Using Virtual Environment
 ```bash
 # Create and activate virtual environment
-source venv/bin/activate  # or: python -m venv venv
-
-# Install dependencies
-pip install --upgrade pip
-pip install -r requirements.txt
+source venv/bin/activate
 ```
 
-#### Direct Installation
-Or install from requirements.txt:
+#### Installation
 ```bash
+# Install dependencies
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
@@ -95,6 +92,7 @@ python run_train.py [setting_name]
 python run_test.py [setting_name]
 python run_baseline.py [setting_name]
 ```
+
 setting\_no  |      setting\_name |
  :---:  | :---: |
   (a)   |  additive\_1x2\_uniform |
@@ -104,6 +102,25 @@ setting\_no  |      setting\_name |
   (e)   |  additive\_1x10\_uniform
   (f)   |   unit\_1x2\_uniform
   (g)   |   unit\_1x2\_uniform\_23
+  (h)   |   additive\_1x2\_beta\_11
+  (i)   |   additive\_1x2\_gamma\_11
+  (j)   |   additive\_1x2\_gamma\_21
+  (k)   |   additive\_1x2\_gamma\_31
+
+#### Data Saving for Restore
+All config files have `save_data = True` by default, which saves training data (`X.npy`) to enable checkpoint resumption and visualization.
+
+#### Visualization
+Visualization notebooks are available for all settings:
+- `visualize_additive_1x2_uniform.ipynb`
+- `visualize_additive_1x2_uniform_416_47.ipynb`
+- `visualize_additive_1x2_uniform_triangle.ipynb`
+- `visualize_additive_1x2_uniform_04_03.ipynb`
+- `visualize_unit_1x2_uniform_23.ipynb`
+- `visualize_additive_1x2_beta_11.ipynb`
+- `visualize_additive_1x2_gamma_11.ipynb`
+- `visualize_additive_1x2_gamma_21.ipynb`
+- `visualize_additive_1x2_gamma_31.ipynb`
   
 ### MyersonNet (Single Item Auctions)
   

@@ -12,11 +12,11 @@ __C = edict()
 cfg = __C
 
 # Output-dir to write log-files and save model
-__C.dir_name = os.path.join("experiments", "additive_1x2_uniform_04_03")
+__C.dir_name = os.path.join("experiments", "additive_1x2_gamma_11")
 
 # Auction params
 __C.num_items = 2
-__C.distribution_type = "asymmetric_uniform_04_03"
+__C.distribution_type = "gamma_11"
 __C.agent_type = "additive"
 
 # Save data for restore.
@@ -25,7 +25,7 @@ __C.save_data = True
 """ Neural Net parameter """
 __C.net = edict()    
 # Init
-__C.net.b_init = [-7.0, 0.0]
+__C.net.b_init = [-1.0, 0.0]
 # num_hidden_units
 __C.net.num_hidden_units = 1000
 # soft-max constant for smooth argmax approximation
@@ -41,7 +41,7 @@ __C.train.seed = 42
 # training form restore_iter [needs saved model]
 __C.train.restore_iter = 0
 # max iters to train 
-__C.train.max_iter = 200000
+__C.train.max_iter = 400000
 # Learning rate of network param updates
 __C.train.learning_rate = 1e-3
 # Regularization
@@ -59,17 +59,17 @@ __C.train.batch_size = 128
 
 """ train summary and save params"""
 # Number of models to store on disk
-__C.train.max_to_keep = 4
+__C.train.max_to_keep = 25
 # Frequency at which models are saved-
-__C.train.save_iter = 100000
+__C.train.save_iter = 20000 
 # Train stats print frequency
-__C.train.print_iter = 10000
+__C.train.print_iter = 1000
    
 
 """ Validation params """
 __C.val = edict()
 # Number of validation batches
-__C.val.num_batches = 100
+__C.val.num_batches = 20
 # Frequency at which validation is performed
 __C.val.print_iter = 10000
 # Validation data
@@ -81,7 +81,7 @@ __C.test = edict()
 # Test Seed
 __C.test.seed = 100
 # Model to be evaluated
-__C.test.restore_iter = 200000
+__C.test.restore_iter = 400000
 # Test data
 __C.test.data = "online"
 # Number of test batches

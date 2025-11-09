@@ -20,7 +20,7 @@ __C.distribution_type = "uniform"
 __C.agent_type = "additive"
 
 # Save data for restore.
-__C.save_data = False
+__C.save_data = True
 
 """ Neural Net parameter """
 __C.net = edict()    
