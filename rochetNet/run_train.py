@@ -93,6 +93,12 @@ elif setting == "additive_1x2_gamma_101":
     Generator = gamma_101_generator.Generator
     Trainer = trainer.Trainer
 
+elif setting == "additive_1x2_gamma_20_1":
+    cfg = additive_1x2_gamma_20_1_config.cfg
+    Net = additive_net.Net
+    Generator = gamma_20_1_generator.Generator
+    Trainer = trainer.Trainer
+
 elif setting == "additive_1x2_gamma_0_1":
     cfg = additive_1x2_gamma_0_1_config.cfg
     Net = additive_net.Net

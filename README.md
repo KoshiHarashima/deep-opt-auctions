@@ -113,18 +113,33 @@ setting\_no  |      setting\_name |
 All config files have `save_data = True` by default, which saves training data (`X.npy`) to enable checkpoint resumption and visualization.
 
 #### Visualization
-Visualization notebooks are available for all settings:
-- `visualize_additive_1x2_uniform.ipynb`
-- `visualize_additive_1x2_uniform_416_47.ipynb`
+Visualization notebooks are available for all settings. All visualization notebooks follow a consistent naming convention:
+
+**Naming Convention**: `visualize_{agent_type}_{auction_size}_{distribution}_{params}.ipynb`
+
+Where:
+- `agent_type`: `additive` or `unit` (for unit_demand)
+- `auction_size`: `1x2`, `1x10`, etc. (number of agents × number of items)
+- `distribution`: `gamma`, `uniform`, `beta`, etc.
+- `params`: Distribution parameters in decimal format with underscores (e.g., `gamma_1_0_1_0` for Gamma(1.0, 1.0), `uniform_0_0_4_0_0_0_3_0` for asymmetric uniform [0,4]×[0,3])
+
+**Examples**:
+- `visualize_additive_1x2_uniform_0_0_1_0.ipynb` - Additive bidder, 1×2 auction, uniform [0,1]
+- `visualize_additive_1x2_gamma_1_0_1_0.ipynb` - Additive bidder, 1×2 auction, Gamma(1.0, 1.0)
+- `visualize_additive_1x2_gamma_20_0_1_0.ipynb` - Additive bidder, 1×2 auction, Gamma(20.0, 1.0)
+- `visualize_additive_1x2_uniform_0_0_4_0_0_0_3_0.ipynb` - Additive bidder, 1×2 auction, asymmetric uniform [0,4]×[0,3]
+- `visualize_additive_1x2_uniform_4_0_16_0_4_0_7_0.ipynb` - Additive bidder, 1×2 auction, asymmetric uniform [4,16]×[4,7]
+- `visualize_unit_1x2_uniform_2_0_3_0.ipynb` - Unit-demand bidder, 1×2 auction, uniform [2,3]
+- `visualize_additive_1x2_beta_1_0_1_0.ipynb` - Additive bidder, 1×2 auction, Beta(1.0, 1.0)
+
+**Available visualization notebooks**:
+- `visualize_additive_1x2_uniform_0_0_1_0.ipynb`
+- `visualize_additive_1x2_uniform_4_0_16_0_4_0_7_0.ipynb`
 - `visualize_additive_1x2_uniform_triangle.ipynb`
-- `visualize_additive_1x2_uniform_04_03.ipynb`
-- `visualize_unit_1x2_uniform_23.ipynb`
-- `visualize_additive_1x2_beta_11.ipynb`
-- `visualize_additive_1x2_gamma_11.ipynb`
-- `visualize_additive_1x2_gamma_21.ipynb`
-- `visualize_additive_1x2_gamma_22.ipynb`
-- `visualize_additive_1x2_gamma_31.ipynb`
-- `visualize_additive_1x2_gamma_41.ipynb`
+- `visualize_additive_1x2_uniform_0_0_4_0_0_0_3_0.ipynb`
+- `visualize_unit_1x2_uniform_2_0_3_0.ipynb`
+- `visualize_additive_1x2_beta_1_0_1_0.ipynb`
+- `visualize_additive_1x2_gamma_1_0_1_0.ipynb` (and many other gamma distributions)
   
 ### MyersonNet (Single Item Auctions)
   
