@@ -224,6 +224,18 @@ elif setting == "additive_1x2_beta_11":
     Net = additive_net.Net
     Generator = beta_11_generator.Generator
     Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_beta_12":
+    cfg = additive_1x2_beta_12_config.cfg
+    Net = additive_net.Net
+    Generator = beta_12_generator.Generator
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_beta_21":
+    cfg = additive_1x2_beta_21_config.cfg
+    Net = additive_net.Net
+    Generator = beta_21_generator.Generator
+    Trainer = trainer.Trainer
     
 else:
     print("None selected")
