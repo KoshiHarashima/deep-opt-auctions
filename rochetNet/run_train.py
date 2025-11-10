@@ -93,6 +93,126 @@ elif setting == "additive_1x2_gamma_101":
     Generator = gamma_101_generator.Generator
     Trainer = trainer.Trainer
 
+elif setting == "additive_1x2_gamma_0_1":
+    cfg = additive_1x2_gamma_0_1_config.cfg
+    Net = additive_net.Net
+    Generator = gamma_0_1_generator.Generator
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_gamma_0_2":
+    cfg = additive_1x2_gamma_0_2_config.cfg
+    Net = additive_net.Net
+    Generator = gamma_0_2_generator.Generator
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_gamma_0_3":
+    cfg = additive_1x2_gamma_0_3_config.cfg
+    Net = additive_net.Net
+    Generator = gamma_0_3_generator.Generator
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_gamma_0_4":
+    cfg = additive_1x2_gamma_0_4_config.cfg
+    Net = additive_net.Net
+    Generator = gamma_0_4_generator.Generator
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_gamma_0_5":
+    cfg = additive_1x2_gamma_0_5_config.cfg
+    Net = additive_net.Net
+    Generator = gamma_0_5_generator.Generator
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_gamma_0_6":
+    cfg = additive_1x2_gamma_0_6_config.cfg
+    Net = additive_net.Net
+    Generator = gamma_0_6_generator.Generator
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_gamma_0_7":
+    cfg = additive_1x2_gamma_0_7_config.cfg
+    Net = additive_net.Net
+    Generator = gamma_0_7_generator.Generator
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_gamma_0_8":
+    cfg = additive_1x2_gamma_0_8_config.cfg
+    Net = additive_net.Net
+    Generator = gamma_0_8_generator.Generator
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_gamma_0_9":
+    cfg = additive_1x2_gamma_0_9_config.cfg
+    Net = additive_net.Net
+    Generator = gamma_0_9_generator.Generator
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_gamma_1_0":
+    cfg = additive_1x2_gamma_1_0_config.cfg
+    Net = additive_net.Net
+    Generator = gamma_1_0_generator.Generator
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_gamma_1_1":
+    cfg = additive_1x2_gamma_1_1_config.cfg
+    Net = additive_net.Net
+    Generator = gamma_1_1_generator.Generator
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_gamma_1_2":
+    cfg = additive_1x2_gamma_1_2_config.cfg
+    Net = additive_net.Net
+    Generator = gamma_1_2_generator.Generator
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_gamma_1_3":
+    cfg = additive_1x2_gamma_1_3_config.cfg
+    Net = additive_net.Net
+    Generator = gamma_1_3_generator.Generator
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_gamma_1_4":
+    cfg = additive_1x2_gamma_1_4_config.cfg
+    Net = additive_net.Net
+    Generator = gamma_1_4_generator.Generator
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_gamma_1_5":
+    cfg = additive_1x2_gamma_1_5_config.cfg
+    Net = additive_net.Net
+    Generator = gamma_1_5_generator.Generator
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_gamma_1_6":
+    cfg = additive_1x2_gamma_1_6_config.cfg
+    Net = additive_net.Net
+    Generator = gamma_1_6_generator.Generator
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_gamma_1_7":
+    cfg = additive_1x2_gamma_1_7_config.cfg
+    Net = additive_net.Net
+    Generator = gamma_1_7_generator.Generator
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_gamma_1_8":
+    cfg = additive_1x2_gamma_1_8_config.cfg
+    Net = additive_net.Net
+    Generator = gamma_1_8_generator.Generator
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_gamma_1_9":
+    cfg = additive_1x2_gamma_1_9_config.cfg
+    Net = additive_net.Net
+    Generator = gamma_1_9_generator.Generator
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_gamma_2_0":
+    cfg = additive_1x2_gamma_2_0_config.cfg
+    Net = additive_net.Net
+    Generator = gamma_2_0_generator.Generator
+    Trainer = trainer.Trainer
+
 elif setting == "additive_1x2_beta_11":
     cfg = additive_1x2_beta_11_config.cfg
     Net = additive_net.Net
