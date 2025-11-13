@@ -96,6 +96,16 @@ class Trainer(object):
         """
         return torch.sum(alloc * x, dim=-1) - pay
 
+    def compute_allocation_constraint_violation(self, alloc):
+        """
+        ネットワークの制約違反計算関数を呼び出し
+        """
+        if hasattr(self.net, 'compute_allocation_constraint_violation'):
+            return self.net.compute_allocation_constraint_violation(alloc)
+        else:
+            # フォールバック（制約がない場合）
+            return torch.zeros(alloc.shape[0], device=alloc.device)
+
 
     def get_misreports(self, x, adv_var, adv_shape):
         """Generate misreports from adversarial variables"""
@@ -137,6 +147,21 @@ class Trainer(object):
             self.update_rate = nn.Parameter(torch.tensor(self.config.train.learning_rate, dtype=torch.float32, device=self.device), requires_grad=False)
             self.update_rate_add = self.config.train.up_op_add
 
+            # Allocation constraint parameters (if enabled)
+            self.use_allocation_constraint = hasattr(self.config.train, 'use_allocation_constraint') and self.config.train.use_allocation_constraint
+            if self.use_allocation_constraint:
+                w_constraint_init_val = 5.0 if "w_constraint_init_val" not in self.config.train else self.config.train.w_constraint_init_val
+                self.w_constraint = nn.Parameter(torch.tensor(w_constraint_init_val, dtype=torch.float32, device=self.device))
+                
+                constraint_update_rate = 1.0 if "constraint_update_rate" not in self.config.train else self.config.train.constraint_update_rate
+                self.constraint_update_rate = nn.Parameter(torch.tensor(constraint_update_rate, dtype=torch.float32, device=self.device), requires_grad=False)
+                self.constraint_update_rate_add = 0.1 if "constraint_update_rate_add" not in self.config.train else self.config.train.constraint_update_rate_add
+                
+                self.constraint_update_frequency = 100 if "constraint_update_frequency" not in self.config.train else self.config.train.constraint_update_frequency
+                self.constraint_up_op_frequency = 1000 if "constraint_up_op_frequency" not in self.config.train else self.config.train.constraint_up_op_frequency
+                
+                self.opt_constraint = optim.SGD([self.w_constraint], lr=self.constraint_update_rate.item())
+
             # Weight decay parameter
             wd = None if "wd" not in self.config.train else self.config.train.wd
             
@@ -147,7 +172,10 @@ class Trainer(object):
             self.opt_3 = optim.SGD([self.w_rgt], lr=self.update_rate.item())
 
             # Metrics names
-            self.metric_names = ["Revenue", "Regret", "Reg_Loss", "Lag_Loss", "Net_Loss", "w_rgt_mean", "update_rate"]
+            if self.use_allocation_constraint:
+                self.metric_names = ["Revenue", "Regret", "Reg_Loss", "Lag_Loss", "Constraint_Viol", "Const_Penalty", "Const_Lag_Loss", "Net_Loss", "w_rgt_mean", "w_constraint", "update_rate", "constraint_update_rate"]
+            else:
+                self.metric_names = ["Revenue", "Regret", "Reg_Loss", "Lag_Loss", "Net_Loss", "w_rgt_mean", "update_rate"]
         
         elif self.mode == "test":
 
@@ -175,10 +203,14 @@ class Trainer(object):
             self.opt_1.load_state_dict(checkpoint['opt_1_state_dict'])
             self.opt_2.load_state_dict(checkpoint['opt_2_state_dict'])
             self.opt_3.load_state_dict(checkpoint['opt_3_state_dict'])
+            if self.use_allocation_constraint and 'w_constraint' in checkpoint:
+                self.w_constraint.data = checkpoint['w_constraint'].to(self.device)
+                self.constraint_update_rate.data = checkpoint['constraint_update_rate'].to(self.device)
+                self.opt_constraint.load_state_dict(checkpoint['opt_constraint_state_dict'])
 
         if iter == 0:
             self.train_gen.save_data(0)
-            torch.save({
+            save_dict = {
                 'net_state_dict': self.net.state_dict(),
                 'w_rgt': self.w_rgt.data,
                 'update_rate': self.update_rate.data,
@@ -186,7 +218,12 @@ class Trainer(object):
                 'opt_2_state_dict': self.opt_2.state_dict(),
                 'opt_3_state_dict': self.opt_3.state_dict(),
                 'iter': iter
-            }, os.path.join(self.config.dir_name, 'model-' + str(iter) + '.pt'))
+            }
+            if self.use_allocation_constraint:
+                save_dict['w_constraint'] = self.w_constraint.data
+                save_dict['constraint_update_rate'] = self.constraint_update_rate.data
+                save_dict['opt_constraint_state_dict'] = self.opt_constraint.state_dict()
+            torch.save(save_dict, os.path.join(self.config.dir_name, 'model-' + str(iter) + '.pt'))
 
         time_elapsed = 0.0
         while iter < (self.config.train.max_iter):
@@ -280,7 +317,18 @@ class Trainer(object):
             revenue = self.compute_rev(pay)
             rgt_penalty = self.update_rate * torch.sum(rgt ** 2) / 2.0        
             lag_loss = torch.sum(self.w_rgt * rgt)
-            loss_1 = -revenue + rgt_penalty + lag_loss
+            
+            # Allocation constraint violation (if enabled)
+            constraint_penalty = torch.tensor(0.0, device=self.device)
+            constraint_lag_loss = torch.tensor(0.0, device=self.device)
+            constraint_violation_mean = torch.tensor(0.0, device=self.device)
+            if self.use_allocation_constraint:
+                constraint_violation = self.compute_allocation_constraint_violation(alloc)
+                constraint_violation_mean = torch.mean(constraint_violation)
+                constraint_penalty = self.constraint_update_rate * constraint_violation_mean ** 2 / 2.0
+                constraint_lag_loss = self.w_constraint * constraint_violation_mean
+            
+            loss_1 = -revenue + rgt_penalty + lag_loss + constraint_penalty + constraint_lag_loss
             loss_1.backward()
             self.opt_1.step()
                 
@@ -324,12 +372,30 @@ class Trainer(object):
                 # Update optimizer learning rate
                 for param_group in self.opt_3.param_groups:
                     param_group['lr'] = self.update_rate.item()
+            
+            # Run Constraint Lagrange Update
+            if self.use_allocation_constraint and iter % self.constraint_update_frequency == 0:
+                self.net.eval()
+                alloc, pay = self.net.inference(X_tensor)
+                constraint_violation = self.compute_allocation_constraint_violation(alloc)
+                constraint_violation_mean = torch.mean(constraint_violation)
+                loss_constraint = -self.w_constraint * constraint_violation_mean
+                self.opt_constraint.zero_grad()
+                loss_constraint.backward()
+                self.opt_constraint.step()
+            
+            # Update constraint penalty parameter
+            if self.use_allocation_constraint and iter % self.constraint_up_op_frequency == 0:
+                self.constraint_update_rate.data += self.constraint_update_rate_add
+                # Update optimizer learning rate
+                for param_group in self.opt_constraint.param_groups:
+                    param_group['lr'] = self.constraint_update_rate.item()
 
             toc = time.time()
             time_elapsed += (toc - tic)
                         
             if ((iter % self.config.train.save_iter) == 0) or (iter == self.config.train.max_iter): 
-                torch.save({
+                save_dict = {
                     'net_state_dict': self.net.state_dict(),
                     'w_rgt': self.w_rgt.data,
                     'update_rate': self.update_rate.data,
@@ -337,7 +403,12 @@ class Trainer(object):
                     'opt_2_state_dict': self.opt_2.state_dict(),
                     'opt_3_state_dict': self.opt_3.state_dict(),
                     'iter': iter
-                }, os.path.join(self.config.dir_name, 'model-' + str(iter) + '.pt'))
+                }
+                if self.use_allocation_constraint:
+                    save_dict['w_constraint'] = self.w_constraint.data
+                    save_dict['constraint_update_rate'] = self.constraint_update_rate.data
+                    save_dict['opt_constraint_state_dict'] = self.opt_constraint.state_dict()
+                torch.save(save_dict, os.path.join(self.config.dir_name, 'model-' + str(iter) + '.pt'))
                 self.train_gen.save_data(iter)
 
             if (iter % self.config.train.print_iter) == 0:
@@ -369,9 +440,27 @@ class Trainer(object):
                     rgt_mean = torch.mean(rgt)
                     rgt_penalty = self.update_rate * torch.sum(rgt ** 2) / 2.0        
                     lag_loss = torch.sum(self.w_rgt * rgt)
-                    loss_1 = -revenue + rgt_penalty + lag_loss
                     
-                    metrics = [revenue.item(), rgt_mean.item(), rgt_penalty.item(), lag_loss.item(), loss_1.item(), torch.mean(self.w_rgt).item(), self.update_rate.item()]
+                    # Allocation constraint violation (if enabled)
+                    constraint_penalty = torch.tensor(0.0, device=self.device)
+                    constraint_lag_loss = torch.tensor(0.0, device=self.device)
+                    constraint_violation_mean = torch.tensor(0.0, device=self.device)
+                    if self.use_allocation_constraint:
+                        constraint_violation = self.compute_allocation_constraint_violation(alloc)
+                        constraint_violation_mean = torch.mean(constraint_violation)
+                        constraint_penalty = self.constraint_update_rate * constraint_violation_mean ** 2 / 2.0
+                        constraint_lag_loss = self.w_constraint * constraint_violation_mean
+                    
+                    loss_1 = -revenue + rgt_penalty + lag_loss + constraint_penalty + constraint_lag_loss
+                    
+                    if self.use_allocation_constraint:
+                        metrics = [revenue.item(), rgt_mean.item(), rgt_penalty.item(), lag_loss.item(), 
+                                  constraint_violation_mean.item(), constraint_penalty.item(), constraint_lag_loss.item(),
+                                  loss_1.item(), torch.mean(self.w_rgt).item(), self.w_constraint.item(), 
+                                  self.update_rate.item(), self.constraint_update_rate.item()]
+                    else:
+                        metrics = [revenue.item(), rgt_mean.item(), rgt_penalty.item(), lag_loss.item(), 
+                                  loss_1.item(), torch.mean(self.w_rgt).item(), self.update_rate.item()]
                 
                 fmt_vals = tuple([item for tup in zip(self.metric_names, metrics) for item in tup])
                 log_str = "TRAIN-BATCH Iter: %d, t = %.4f" % (iter, time_elapsed) + ", %s: %.6f" * len(self.metric_names) % fmt_vals
@@ -426,9 +515,27 @@ class Trainer(object):
                         rgt_mean = torch.mean(rgt)
                         rgt_penalty = self.update_rate * torch.sum(rgt ** 2) / 2.0        
                         lag_loss = torch.sum(self.w_rgt * rgt)
-                        loss_1 = -revenue + rgt_penalty + lag_loss
                         
-                        metrics = [revenue.item(), rgt_mean.item(), rgt_penalty.item(), lag_loss.item(), loss_1.item(), torch.mean(self.w_rgt).item(), self.update_rate.item()]
+                        # Allocation constraint violation (if enabled)
+                        constraint_penalty = torch.tensor(0.0, device=self.device)
+                        constraint_lag_loss = torch.tensor(0.0, device=self.device)
+                        constraint_violation_mean = torch.tensor(0.0, device=self.device)
+                        if self.use_allocation_constraint:
+                            constraint_violation = self.compute_allocation_constraint_violation(alloc)
+                            constraint_violation_mean = torch.mean(constraint_violation)
+                            constraint_penalty = self.constraint_update_rate * constraint_violation_mean ** 2 / 2.0
+                            constraint_lag_loss = self.w_constraint * constraint_violation_mean
+                        
+                        loss_1 = -revenue + rgt_penalty + lag_loss + constraint_penalty + constraint_lag_loss
+                        
+                        if self.use_allocation_constraint:
+                            metrics = [revenue.item(), rgt_mean.item(), rgt_penalty.item(), lag_loss.item(), 
+                                      constraint_violation_mean.item(), constraint_penalty.item(), constraint_lag_loss.item(),
+                                      loss_1.item(), torch.mean(self.w_rgt).item(), self.w_constraint.item(), 
+                                      self.update_rate.item(), self.constraint_update_rate.item()]
+                        else:
+                            metrics = [revenue.item(), rgt_mean.item(), rgt_penalty.item(), lag_loss.item(), 
+                                      loss_1.item(), torch.mean(self.w_rgt).item(), self.update_rate.item()]
                     metric_tot += metrics
                 
                 metric_tot = metric_tot / self.config.val.num_batches

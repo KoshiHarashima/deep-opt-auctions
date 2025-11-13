@@ -143,3 +143,40 @@ class Net(BaseNet):
         activation_summary(p)
         
         return a, p
+
+    def compute_allocation_constraint_violation(self, alloc):
+        """
+        財3の配分確率に対する制約違反を計算（単一bidderの場合）
+        
+        制約:
+        - 下界: max(0, alloc1 + alloc2 - 1) <= alloc3
+        - 上界: alloc3 <= min(alloc1, alloc2)
+        
+        Args:
+            alloc: [batch_size, num_agents, num_items]
+                  単一bidderの場合、alloc[:, 0, :] が配分確率
+        
+        Returns:
+            constraint_violation: [batch_size]
+                                各サンプルごとの制約違反の合計
+        """
+        assert self.config.num_agents == 1, "制約付き設定ではnum_agents=1である必要があります"
+        assert self.config.num_items == 3, "制約付き設定ではnum_items=3である必要があります"
+        
+        # 単一bidderの場合、alloc[:, 0, :] が配分確率
+        alloc1 = alloc[:, 0, 0]  # 財1の配分確率
+        alloc2 = alloc[:, 0, 1]  # 財2の配分確率
+        alloc3 = alloc[:, 0, 2]  # 財3の配分確率
+        
+        # 下界: max(0, alloc1 + alloc2 - 1)
+        lower_bound = torch.clamp(alloc1 + alloc2 - 1, min=0.0)
+        # 上界: min(alloc1, alloc2)
+        upper_bound = torch.minimum(alloc1, alloc2)
+        
+        # 制約違反
+        lower_violation = F.relu(lower_bound - alloc3)  # 下界違反（alloc3が小さすぎる）
+        upper_violation = F.relu(alloc3 - upper_bound)   # 上界違反（alloc3が大きすぎる）
+        
+        constraint_violation = lower_violation + upper_violation
+        
+        return constraint_violation

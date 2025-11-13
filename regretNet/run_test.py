@@ -145,12 +145,33 @@ elif setting == "additive_1x2_gamma_31":
     clip_op_lambda = (lambda x: clip_op_gamma_01(x))
     Trainer = trainer.Trainer
 
-elif setting == "additive_1x3_constrained":
-    cfg = additive_1x3_constrained_config.cfg
-    Net = constrained_additive_net.Net
+elif setting == "additive_1x3_constrained_c0_1":
+    cfg = additive_1x3_constrained_c0_1_config.cfg
+    Net = additive_net.Net
     Generator = constrained_3item_generator.Generator
     clip_op_lambda = (lambda x: clip_op_constrained_3item(x, c=cfg.c))
-    Trainer = constrained_trainer.Trainer
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x3_constrained_c0_5":
+    cfg = additive_1x3_constrained_c0_5_config.cfg
+    Net = additive_net.Net
+    Generator = constrained_3item_generator.Generator
+    clip_op_lambda = (lambda x: clip_op_constrained_3item(x, c=cfg.c))
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x3_constrained_c1":
+    cfg = additive_1x3_constrained_c1_config.cfg
+    Net = additive_net.Net
+    Generator = constrained_3item_generator.Generator
+    clip_op_lambda = (lambda x: clip_op_constrained_3item(x, c=cfg.c))
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x3_constrained_c10":
+    cfg = additive_1x3_constrained_c10_config.cfg
+    Net = additive_net.Net
+    Generator = constrained_3item_generator.Generator
+    clip_op_lambda = (lambda x: clip_op_constrained_3item(x, c=cfg.c))
+    Trainer = trainer.Trainer
 
 else:
     print("None selected")
