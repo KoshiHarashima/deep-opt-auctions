@@ -45,6 +45,12 @@ elif setting == "additive_1x10_uniform":
     Generator = uniform_01_generator.Generator
     Trainer = trainer.Trainer
 
+elif setting == "additive_1x3_uniform_0_1":
+    cfg = additive_1x3_uniform_0_1_config.cfg
+    Net = additive_net.Net
+    Generator = uniform_01_generator.Generator
+    Trainer = trainer.Trainer
+
 elif setting == "unit_1x2_uniform":
     cfg = unit_1x2_uniform_config.cfg
     Net = unit_net.Net

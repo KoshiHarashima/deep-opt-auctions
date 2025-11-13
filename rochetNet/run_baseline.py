@@ -32,6 +32,10 @@ elif setting == "additive_1x10_uniform":
     cfg = additive_1x10_uniform_config.cfg
     Generator = uniform_01_generator.Generator
 
+elif setting == "additive_1x3_uniform_0_1":
+    cfg = additive_1x3_uniform_0_1_config.cfg
+    Generator = uniform_01_generator.Generator
+
 elif setting == "unit_1x2_uniform":
     cfg = unit_1x2_uniform_config.cfg
     Generator = uniform_01_generator.Generator
