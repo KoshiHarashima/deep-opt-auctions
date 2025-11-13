@@ -1,0 +1,116 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
+import os
+import os.path as osp
+import numpy as np
+# `pip install easydict` if you don't have it
+from easydict import EasyDict as edict
+
+__C = edict()
+cfg = __C
+
+# Output-dir to write log-files and save model
+__C.dir_name = os.path.join("experiments", "additive_1x3_constrained_c7")
+
+# Auction params
+__C.num_items = 3
+__C.distribution_type = "uniform"
+__C.agent_type = "additive"
+# 財3の価値分布のパラメータ
+__C.c = 7.0
+
+# Save data for restore.
+__C.save_data = True
+
+""" Neural Net parameter """
+__C.net = edict()    
+# Init
+__C.net.b_init = [-1.0, 0.0]
+# num_hidden_units
+__C.net.num_hidden_units = 1000
+# soft-max constant for smooth argmax approximation
+__C.net.eps = 1e3
+
+
+""" Train paramters """
+__C.train = edict()
+
+# Random seed
+__C.train.seed = 42
+# Iter from which training begins. If restore_iter = 0 for default. restore_iter > 0 for starting
+# training form restore_iter [needs saved model]
+__C.train.restore_iter = 0
+# max iters to train 
+__C.train.max_iter = 400000
+# Learning rate of network param updates
+__C.train.learning_rate = 1e-3
+# Regularization
+__C.train.wd = None
+
+# Constraint parameters (Augmented Lagrangian法用)
+# Lagrange乗数の初期値
+__C.train.w_constraint_init_val = 5.0
+# ペナルティパラメータの初期値
+__C.train.constraint_update_rate = 1.0
+# ペナルティパラメータの増加量
+__C.train.constraint_update_rate_add = 0.1
+# Lagrange乗数の更新頻度
+__C.train.update_frequency = 100
+# ペナルティパラメータの更新頻度
+__C.train.up_op_frequency = 1000
+
+
+""" Train-data params """
+# Choose between fixed and online. If online, set adv_reuse to False
+__C.train.data = "fixed"
+# Number of batches
+__C.train.num_batches = 5000
+# Train batch size
+__C.train.batch_size = 128
+
+
+""" train summary and save params"""
+# Number of models to store on disk
+__C.train.max_to_keep = 4
+# Frequency at which models are saved-
+__C.train.save_iter = 100000
+# Train stats print frequency
+__C.train.print_iter = 10000
+   
+
+""" Validation params """
+__C.val = edict()
+# Number of validation batches
+__C.val.num_batches = 100
+# Frequency at which validation is performed
+__C.val.print_iter = 10000
+# Validation data
+__C.val.data = "fixed"
+
+""" Test params """
+# Test set
+__C.test = edict()
+# Test Seed
+__C.test.seed = 100
+# Model to be evaluated
+__C.test.restore_iter = 400000
+# Test data
+__C.test.data = "online"
+# Number of test batches
+__C.test.num_batches = 100
+# Test batch size
+__C.test.batch_size = 100
+# Save Ouput
+__C.test.save_output = False
+
+
+# Fixed Val params
+__C.val.batch_size = __C.train.batch_size
+
+# Compute number of samples
+__C.train.num_instances = __C.train.num_batches * __C.train.batch_size
+__C.val.num_instances = __C.val.num_batches * __C.val.batch_size
+__C.test.num_instances = __C.test.num_batches * __C.test.batch_size
+

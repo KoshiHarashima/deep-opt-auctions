@@ -108,6 +108,12 @@ setting\_no  |      setting\_name |
   (k)   |   additive\_1x2\_gamma\_22
   (l)   |   additive\_1x2\_gamma\_31
   (m)   |   additive\_1x2\_gamma\_41
+  (n)   |   additive\_1x3\_constrained\_c1 (c=1.0)
+  (o)   |   additive\_1x3\_constrained\_c3 (c=3.0)
+  (p)   |   additive\_1x3\_constrained\_c5 (c=5.0)
+  (q)   |   additive\_1x3\_constrained\_c7 (c=7.0)
+  (r)   |   additive\_1x3\_constrained\_c10 (c=10.0)
+  (s)   |   additive\_1x3\_constrained\_c100 (c=100.0)
 
 #### Data Saving for Restore
 All config files have `save_data = True` by default, which saves training data (`X.npy`) to enable checkpoint resumption and visualization.
@@ -187,6 +193,12 @@ setting\_no  |      setting\_name |
 
 - **additive\_1x2\_gamma\_41**: A single additive bidder with preferences over two items, where the item values are drawn from Gamma(k=4, θ=1) (mean=4, variance=4).
 
+### Constrained Allocation (制約付き配分)
+- **additive\_1x3\_constrained\_c* (c=1, 3, 5, 7, 10, 100)**: 単一のadditive bidderと3財のオークション。財1と財2の価値はU\[0, 1\]に従い、財3の価値はU\[0, c\]に従う。財3の配分確率には以下の制約が課される：
+  - 下界制約: 財3の配分確率 ≥ max(0, 財1の配分確率 + 財2の配分確率-1)
+  - 上界制約: 財3の配分確率 ≤ min(財1の配分確率, 財2の配分確率)
+  制約違反に対してAugmented Lagrangian法を用いて罰則項を追加し、制約を満たしながらrevenueを最大化する。実装は既存クラスを変更せず、新規クラス（`constrained_additive_net.py`、`constrained_trainer.py`など）として追加されている。
+
 ### Multiple Bidders
 - **additive\_2x2\_uniform**: Two additive bidders and two items, where bidders draw their value for each item from U\[0, 1\]. 
 
@@ -201,13 +213,6 @@ setting\_no  |      setting\_name |
 - **additive\_3x10\_uniform**: 3 additive bidders and 10 items, where bidders draw their value for each item from U\[0, 1\].
 
 - **additive\_5x10\_uniform**: 5 additive bidders and 10 items, where bidders draw their value for each item from U\[0, 1\].
-
-### Constrained Allocation (制約付き配分)
-- **additive\_1x3\_constrained**: 
-単一のadditive bidderと3財のオークション。財1と財2の価値はU\[0, 1\]に従い、財3の価値はU\[0, c\]（cはパラメータ、デフォルトは1.0）に従う。財3の配分確率には以下の制約が課される：
-  - 下界制約: 財3の配分確率 ≥ max(0, 財1の配分確率 + 財2の配分確率-1)
-  - 上界制約: 財3の配分確率 ≤ min(財1の配分確率, 財2の配分確率)
-  この設定では、RegretNetに加えて配分確率の制約違反に対する罰則項が追加される。既存のregret罰則項と同様に、Lagrange乗数法を用いて制約違反を最小化する。実装は既存クラスを変更せず、新規クラス（`constrained_additive_net.py`、`constrained_trainer.py`など）として追加されている。
 
 ## Visualization
 

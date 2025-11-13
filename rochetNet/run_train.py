@@ -63,6 +63,12 @@ elif setting == "additive_1x2_gamma_11":
     Generator = gamma_11_generator.Generator
     Trainer = trainer.Trainer
 
+elif setting == "additive_1x3_gamma_1_0_1_0":
+    cfg = additive_1x3_gamma_1_0_1_0_config.cfg
+    Net = additive_net.Net
+    Generator = gamma_11_generator.Generator
+    Trainer = trainer.Trainer
+
 elif setting == "additive_1x2_gamma_21":
     cfg = additive_1x2_gamma_21_config.cfg
     Net = additive_net.Net
@@ -248,6 +254,60 @@ elif setting == "additive_1x2_beta_31":
     Net = additive_net.Net
     Generator = beta_31_generator.Generator
     Trainer = trainer.Trainer
+
+elif setting == "additive_1x3_constrained":
+    cfg = additive_1x3_constrained_config.cfg
+    Net = constrained_additive_net.Net
+    Generator = constrained_3item_generator.Generator
+    Trainer = constrained_trainer.Trainer
+
+elif setting == "additive_1x3_constrained_c1":
+    cfg = additive_1x3_constrained_c1_config.cfg
+    Net = constrained_additive_net.Net
+    Generator = constrained_3item_generator.Generator
+    Trainer = constrained_trainer.Trainer
+
+elif setting == "additive_1x3_constrained_c3":
+    cfg = additive_1x3_constrained_c3_config.cfg
+    Net = constrained_additive_net.Net
+    Generator = constrained_3item_generator.Generator
+    Trainer = constrained_trainer.Trainer
+
+elif setting == "additive_1x3_constrained_c5":
+    cfg = additive_1x3_constrained_c5_config.cfg
+    Net = constrained_additive_net.Net
+    Generator = constrained_3item_generator.Generator
+    Trainer = constrained_trainer.Trainer
+
+elif setting == "additive_1x3_constrained_c7":
+    cfg = additive_1x3_constrained_c7_config.cfg
+    Net = constrained_additive_net.Net
+    Generator = constrained_3item_generator.Generator
+    Trainer = constrained_trainer.Trainer
+
+elif setting == "additive_1x3_constrained_c10":
+    cfg = additive_1x3_constrained_config.cfg
+    Net = constrained_additive_net.Net
+    Generator = constrained_3item_generator.Generator
+    Trainer = constrained_trainer.Trainer
+
+elif setting == "additive_1x3_constrained_c100":
+    cfg = additive_1x3_constrained_c100_config.cfg
+    Net = constrained_additive_net.Net
+    Generator = constrained_3item_generator.Generator
+    Trainer = constrained_trainer.Trainer
+
+elif setting == "additive_1x3_constrained_c0_1":
+    cfg = additive_1x3_constrained_c0_1_config.cfg
+    Net = constrained_additive_net.Net
+    Generator = constrained_3item_generator.Generator
+    Trainer = constrained_trainer.Trainer
+
+elif setting == "additive_1x3_constrained_c0_5":
+    cfg = additive_1x3_constrained_c0_5_config.cfg
+    Net = constrained_additive_net.Net
+    Generator = constrained_3item_generator.Generator
+    Trainer = constrained_trainer.Trainer
     
 else:
     print("None selected")

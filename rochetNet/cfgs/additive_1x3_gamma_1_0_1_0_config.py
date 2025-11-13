@@ -12,32 +12,27 @@ __C = edict()
 cfg = __C
 
 # Output-dir to write log-files and save model
-__C.dir_name = os.path.join("experiments", "additive_1x3_constrained")
+__C.dir_name = os.path.join("experiments", "additive_1x3_gamma_1_0_1_0")
 
 # Auction params
-__C.num_agents = 1
-__C.num_items = 3  # 3財
-__C.distribution_type = "constrained"
+__C.num_items = 3
+__C.distribution_type = "gamma_11"
 __C.agent_type = "additive"
-__C.c = 1.0  # 財3の上限パラメータ
 
 # Save data for restore.
 __C.save_data = True
 
-# Neural Net parameters
+""" Neural Net parameter """
 __C.net = edict()    
-# initialization g - glorot, h - he + u - uniform, n - normal [gu, gn, hu, hn]
-__C.net.init = "gu"
-# activations ["tanh", "sigmoid", "relu"]
-__C.net.activation = "tanh"
-# num_a_layers, num_p_layers - total number of hidden_layers + output_layer, [a - alloc, p - pay]
-__C.net.num_a_layers = 3
-__C.net.num_p_layers = 3
-# num_p_hidden_units, num_p_hidden_units - number of hidden units, [a - alloc, p - pay]
-__C.net.num_p_hidden_units = 100
-__C.net.num_a_hidden_units = 100
+# Init
+__C.net.b_init = [-1.0, 0.0]
+# num_hidden_units
+__C.net.num_hidden_units = 1000
+# soft-max constant for smooth argmax approximation
+__C.net.eps = 1e3
 
-# Train paramters
+
+""" Train paramters """
 __C.train = edict()
 
 # Random seed
@@ -52,6 +47,7 @@ __C.train.learning_rate = 1e-3
 # Regularization
 __C.train.wd = None
 
+
 """ Train-data params """
 # Choose between fixed and online. If online, set adv_reuse to False
 __C.train.data = "fixed"
@@ -59,35 +55,6 @@ __C.train.data = "fixed"
 __C.train.num_batches = 5000
 # Train batch size
 __C.train.batch_size = 128
-
-
-""" Train-misreport params """
-# Cache-misreports after misreport optimization
-__C.train.adv_reuse = True
-# Number of misreport initialization for training
-__C.train.num_misreports = 1
-# Number of steps for misreport computation
-__C.train.gd_iter = 25
-# Learning rate of misreport computation
-__C.train.gd_lr = 0.1
-
-""" Lagrange Optimization params (regret用) """
-# Initial update rate
-__C.train.update_rate = 1.0
-# Initial Lagrange weights
-__C.train.w_rgt_init_val = 5.0
-# Lagrange update frequency
-__C.train.update_frequency = 100
-# Value by which update rate is incremented
-__C.train.up_op_add = 50.0
-# Frequency at which update rate is incremented
-__C.train.up_op_frequency = 10000
-
-""" Constraint violation params (制約違反用) """
-# Initial Lagrange weights for constraint violation
-__C.train.w_constraint_init_val = 5.0
-# Update rate for constraint violation
-__C.train.constraint_update_rate = 1.0
 
 
 """ train summary and save params"""
@@ -101,15 +68,11 @@ __C.train.print_iter = 1000
 
 """ Validation params """
 __C.val = edict()
-# Number of steps for misreport computation
-__C.val.gd_iter = 2000
-# Learning rate for misreport computation
-__C.val.gd_lr = 0.1
 # Number of validation batches
 __C.val.num_batches = 20
 # Frequency at which validation is performed
 __C.val.print_iter = 10000
-# Validation data frequency
+# Validation data
 __C.val.data = "fixed"
 
 """ Test params """
@@ -119,12 +82,6 @@ __C.test = edict()
 __C.test.seed = 100
 # Model to be evaluated
 __C.test.restore_iter = 400000
-# Number of misreports
-__C.test.num_misreports = 1000
-# Number of steps for misreport computation
-__C.test.gd_iter = 2000
-# Learning rate for misreport computation
-__C.test.gd_lr = 0.1
 # Test data
 __C.test.data = "online"
 # Number of test batches
@@ -137,7 +94,6 @@ __C.test.save_output = False
 
 # Fixed Val params
 __C.val.batch_size = __C.train.batch_size
-__C.val.num_misreports = __C.train.num_misreports
 
 # Compute number of samples
 __C.train.num_instances = __C.train.num_batches * __C.train.batch_size

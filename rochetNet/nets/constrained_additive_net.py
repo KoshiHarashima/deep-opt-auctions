@@ -14,28 +14,32 @@ class Net(AdditiveNet):
     財3の配分確率に対する制約:
     - 下界: max(0, alloc1 + alloc2 - 1) <= alloc3
     - 上界: alloc3 <= min(alloc1, alloc2)
+    
+    rochetNetは単一bidderなので、配分の形状は[batch_size, num_items]
     """
     
-    def __init__(self, config):
-        super(Net, self).__init__(config)
+    def __init__(self, config, mode):
+        super(Net, self).__init__(config, mode)
     
     def compute_allocation_constraint_violation(self, alloc):
         """
         財3の配分確率に対する制約違反を計算
         
         Args:
-            alloc: [batch_size, num_agents, num_items]
-                   alloc[:, :, 0] = 財1の配分確率
-                   alloc[:, :, 1] = 財2の配分確率
-                   alloc[:, :, 2] = 財3の配分確率
+            alloc: [batch_size, num_items]
+                   alloc[:, 0] = 財1の配分確率
+                   alloc[:, 1] = 財2の配分確率
+                   alloc[:, 2] = 財3の配分確率
         
         Returns:
-            constraint_violation: [batch_size, num_agents]
-                                各サンプル・エージェントごとの制約違反の合計
+            constraint_violation: [batch_size]
+                                各サンプルごとの制約違反の合計
         """
-        alloc1 = alloc[:, :, 0]  # 財1の配分確率
-        alloc2 = alloc[:, :, 1]  # 財2の配分確率
-        alloc3 = alloc[:, :, 2]  # 財3の配分確率
+        assert alloc.shape[1] == 3, "制約付き設定ではnum_items=3である必要があります"
+        
+        alloc1 = alloc[:, 0]  # 財1の配分確率
+        alloc2 = alloc[:, 1]  # 財2の配分確率
+        alloc3 = alloc[:, 2]  # 財3の配分確率
         
         # 下界: max(0, alloc1 + alloc2 - 1)
         lower_bound = torch.clamp(alloc1 + alloc2 - 1, min=0.0)
