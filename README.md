@@ -140,6 +140,12 @@ setting\_no  |      setting\_name | Description |
   (an)  |   additive\_1x2\_gamma\_20\_1 | Single additive bidder, 2 items, Gamma(20, 1) |
   (ao)  |   additive\_1x3\_gamma\_1\_0\_1\_0 | Single additive bidder, 3 items, Gamma(1.0, 1.0) |
   (ap)  |   additive\_1x3\_constrained\_c1 | Single additive bidder, 3 items, constrained allocation (c=1.0) |
+  (aq)  |   additive\_1x10\_gamma\_11 | Single additive bidder, 10 items, Gamma(1, 1) |
+  (ar)  |   additive\_1x2\_normal\_corr\_m05 | Single additive bidder, 2 items, correlated normal (ρ=-0.5) |
+  (as)  |   additive\_1x2\_normal\_corr\_0 | Single additive bidder, 2 items, correlated normal (ρ=0) |
+  (at)  |   additive\_1x2\_normal\_corr\_05 | Single additive bidder, 2 items, correlated normal (ρ=0.5) |
+  (au)  |   additive\_1x2\_normal\_corr\_07 | Single additive bidder, 2 items, correlated normal (ρ=0.7) |
+  (av)  |   additive\_1x2\_normal\_corr\_m07 | Single additive bidder, 2 items, correlated normal (ρ=-0.7) |
 
 #### Data Saving for Restore
 All config files have `save_data = True` by default, which saves training data (`X.npy`) to enable checkpoint resumption and visualization.
@@ -151,7 +157,13 @@ All gamma distribution configurations have been updated with improved hyperparam
 - **num_batches**: 5000 → **10000** (more diverse training data)
 - **batch_size**: 128 → **256** (more stable gradient estimation)
 
-These updates apply to all gamma distribution settings (e.g., `additive_1x2_gamma_0_1` through `additive_1x2_gamma_2_0`, `additive_1x2_gamma_11`, `additive_1x2_gamma_21`, etc.).
+These updates apply to all gamma distribution settings (e.g., `additive_1x2_gamma_0_1` through `additive_1x2_gamma_2_0`, `additive_1x2_gamma_11`, `additive_1x2_gamma_21`, `additive_1x10_gamma_11`, etc.).
+
+#### Correlated Normal Distributions
+The correlated normal distribution settings use multivariate normal distributions with specified correlation coefficients:
+- Values are generated using `np.random.multivariate_normal` with a covariance matrix reflecting the desired correlation
+- Generated samples are scaled (×0.2, +0.5) and clipped to [0, 1] to ensure valid valuation ranges
+- Available correlations: -0.7, -0.5, 0, 0.5, 0.7
 
 #### Visualization
 Visualization notebooks are available for all settings. All visualization notebooks follow a consistent naming convention:
@@ -198,6 +210,14 @@ Where:
   - `visualize_additive_1x3_gamma_1_0_1_0.ipynb`
 - Constrained allocations:
   - `visualize_additive_1x3_constrained_c1.ipynb`
+- Correlated normal distributions:
+  - `visualize_additive_1x2_normal_corr_m05.ipynb` (ρ=-0.5)
+  - `visualize_additive_1x2_normal_corr_0.ipynb` (ρ=0)
+  - `visualize_additive_1x2_normal_corr_05.ipynb` (ρ=0.5)
+  - `visualize_additive_1x2_normal_corr_07.ipynb` (ρ=0.7)
+  - `visualize_additive_1x2_normal_corr_m07.ipynb` (ρ=-0.7)
+- Multi-item gamma distributions:
+  - `visualize_additive_1x10_gamma_11.ipynb` (10 items, Gamma(1,1))
   
 ### MyersonNet (Single Item Auctions)
   
@@ -254,6 +274,18 @@ setting\_no  |      setting\_name |
 - **additive\_1x3\_uniform\_0\_1**: A single additive bidder with preferences over three items, where the item values are drawn from U[0, 1].
 
 - **additive\_1x3\_gamma\_1\_0\_1\_0**: A single additive bidder with preferences over three items, where the item values are drawn from Gamma(1.0, 1.0).
+
+- **additive\_1x10\_gamma\_11**: A single additive bidder with preferences over 10 items, where all item values are drawn from Gamma(1, 1).
+
+- **additive\_1x2\_normal\_corr\_m05**: A single additive bidder with preferences over two items, where the item values are drawn from a bivariate normal distribution with correlation ρ=-0.5. The values are scaled and clipped to [0, 1].
+
+- **additive\_1x2\_normal\_corr\_0**: A single additive bidder with preferences over two items, where the item values are drawn from a bivariate normal distribution with correlation ρ=0 (independent). The values are scaled and clipped to [0, 1].
+
+- **additive\_1x2\_normal\_corr\_05**: A single additive bidder with preferences over two items, where the item values are drawn from a bivariate normal distribution with correlation ρ=0.5. The values are scaled and clipped to [0, 1].
+
+- **additive\_1x2\_normal\_corr\_07**: A single additive bidder with preferences over two items, where the item values are drawn from a bivariate normal distribution with correlation ρ=0.7. The values are scaled and clipped to [0, 1].
+
+- **additive\_1x2\_normal\_corr\_m07**: A single additive bidder with preferences over two items, where the item values are drawn from a bivariate normal distribution with correlation ρ=-0.7. The values are scaled and clipped to [0, 1].
 
 ### Constrained Allocation (制約付き配分)
 

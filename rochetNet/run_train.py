@@ -266,6 +266,42 @@ elif setting == "additive_1x3_constrained_c1":
     Net = constrained_additive_net.Net
     Generator = constrained_3item_generator.Generator
     Trainer = constrained_trainer.Trainer
+
+elif setting == "additive_1x10_gamma_11":
+    cfg = additive_1x10_gamma_11_config.cfg
+    Net = additive_net.Net
+    Generator = gamma_11_generator.Generator
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_normal_corr_m05":
+    cfg = additive_1x2_normal_corr_m05_config.cfg
+    Net = additive_net.Net
+    Generator = normal_corr_m05_generator.Generator
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_normal_corr_0":
+    cfg = additive_1x2_normal_corr_0_config.cfg
+    Net = additive_net.Net
+    Generator = normal_corr_0_generator.Generator
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_normal_corr_05":
+    cfg = additive_1x2_normal_corr_05_config.cfg
+    Net = additive_net.Net
+    Generator = normal_corr_05_generator.Generator
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_normal_corr_07":
+    cfg = additive_1x2_normal_corr_07_config.cfg
+    Net = additive_net.Net
+    Generator = normal_corr_07_generator.Generator
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_normal_corr_m07":
+    cfg = additive_1x2_normal_corr_m07_config.cfg
+    Net = additive_net.Net
+    Generator = normal_corr_m07_generator.Generator
+    Trainer = trainer.Trainer
     
 else:
     print("None selected")
