@@ -79,7 +79,10 @@ setting\_no  |      setting\_name |
   (o) |   additive\_1x2\_gamma\_11
   (p) |   additive\_1x2\_gamma\_21
   (q) |   additive\_1x2\_gamma\_31
-  (r) |   additive\_1x3\_constrained
+  (r) |   additive\_1x3\_constrained\_c0\_1 | 3 bidders, 3 items, constrained allocation (c=0.1) |
+  (s) |   additive\_1x3\_constrained\_c0\_5 | 3 bidders, 3 items, constrained allocation (c=0.5) |
+  (t) |   additive\_1x3\_constrained\_c1 | 3 bidders, 3 items, constrained allocation (c=1.0) |
+  (u) |   additive\_1x3\_constrained\_c10 | 3 bidders, 3 items, constrained allocation (c=10.0) |
 
 
 ### RochetNet (Single Bidder Auctions)
@@ -93,30 +96,62 @@ python run_test.py [setting_name]
 python run_baseline.py [setting_name]
 ```
 
-setting\_no  |      setting\_name |
- :---:  | :---: |
-  (a)   |  additive\_1x2\_uniform |
-  (b)   |   additive\_1x2\_uniform\_416\_47
-  \(c\) |   additive\_1x2\_uniform\_triangle
-  (d)   |   additive\_1x2\_uniform\_04\_03
-  (e)   |  additive\_1x10\_uniform
-  (f)   |   unit\_1x2\_uniform
-  (g)   |   unit\_1x2\_uniform\_23
-  (h)   |   additive\_1x2\_beta\_11
-  (i)   |   additive\_1x2\_gamma\_11
-  (j)   |   additive\_1x2\_gamma\_21
-  (k)   |   additive\_1x2\_gamma\_22
-  (l)   |   additive\_1x2\_gamma\_31
-  (m)   |   additive\_1x2\_gamma\_41
-  (n)   |   additive\_1x3\_constrained\_c1 (c=1.0)
-  (o)   |   additive\_1x3\_constrained\_c3 (c=3.0)
-  (p)   |   additive\_1x3\_constrained\_c5 (c=5.0)
-  (q)   |   additive\_1x3\_constrained\_c7 (c=7.0)
-  (r)   |   additive\_1x3\_constrained\_c10 (c=10.0)
-  (s)   |   additive\_1x3\_constrained\_c100 (c=100.0)
+setting\_no  |      setting\_name | Description |
+ :---:  | :---: | :--- |
+  (a)   |  additive\_1x2\_uniform | Single additive bidder, 2 items, U[0,1] |
+  (b)   |   additive\_1x2\_uniform\_416\_47 | Single additive bidder, 2 items, U[4,16]×U[4,7] |
+  \(c\) |   additive\_1x2\_uniform\_triangle | Single additive bidder, 2 items, uniform triangle |
+  (d)   |   additive\_1x2\_uniform\_04\_03 | Single additive bidder, 2 items, U[0,4]×U[0,3] |
+  (e)   |  additive\_1x10\_uniform | Single additive bidder, 10 items, U[0,1] |
+  (f)   |   additive\_1x3\_uniform\_0\_1 | Single additive bidder, 3 items, U[0,1] |
+  (g)   |   unit\_1x2\_uniform | Single unit-demand bidder, 2 items, U[0,1] |
+  (h)   |   unit\_1x2\_uniform\_23 | Single unit-demand bidder, 2 items, U[2,3] |
+  (i)   |   additive\_1x2\_beta\_11 | Single additive bidder, 2 items, Beta(1,1) |
+  (j)   |   additive\_1x2\_beta\_12 | Single additive bidder, 2 items, Beta(1,2) |
+  (k)   |   additive\_1x2\_beta\_13 | Single additive bidder, 2 items, Beta(1,3) |
+  (l)   |   additive\_1x2\_beta\_21 | Single additive bidder, 2 items, Beta(2,1) |
+  (m)   |   additive\_1x2\_beta\_31 | Single additive bidder, 2 items, Beta(3,1) |
+  (n)   |   additive\_1x2\_gamma\_0\_1 | Single additive bidder, 2 items, Gamma(0.1, 1.0) |
+  (o)   |   additive\_1x2\_gamma\_0\_2 | Single additive bidder, 2 items, Gamma(0.2, 1.0) |
+  (p)   |   additive\_1x2\_gamma\_0\_3 | Single additive bidder, 2 items, Gamma(0.3, 1.0) |
+  (q)   |   additive\_1x2\_gamma\_0\_4 | Single additive bidder, 2 items, Gamma(0.4, 1.0) |
+  (r)   |   additive\_1x2\_gamma\_0\_5 | Single additive bidder, 2 items, Gamma(0.5, 1.0) |
+  (s)   |   additive\_1x2\_gamma\_0\_6 | Single additive bidder, 2 items, Gamma(0.6, 1.0) |
+  (t)   |   additive\_1x2\_gamma\_0\_7 | Single additive bidder, 2 items, Gamma(0.7, 1.0) |
+  (u)   |   additive\_1x2\_gamma\_0\_8 | Single additive bidder, 2 items, Gamma(0.8, 1.0) |
+  (v)   |   additive\_1x2\_gamma\_0\_9 | Single additive bidder, 2 items, Gamma(0.9, 1.0) |
+  (w)   |   additive\_1x2\_gamma\_1\_0 | Single additive bidder, 2 items, Gamma(1.0, 1.0) |
+  (x)   |   additive\_1x2\_gamma\_1\_1 | Single additive bidder, 2 items, Gamma(1.1, 1.0) |
+  (y)   |   additive\_1x2\_gamma\_1\_2 | Single additive bidder, 2 items, Gamma(1.2, 1.0) |
+  (z)   |   additive\_1x2\_gamma\_1\_3 | Single additive bidder, 2 items, Gamma(1.3, 1.0) |
+  (aa)  |   additive\_1x2\_gamma\_1\_4 | Single additive bidder, 2 items, Gamma(1.4, 1.0) |
+  (ab)  |   additive\_1x2\_gamma\_1\_5 | Single additive bidder, 2 items, Gamma(1.5, 1.0) |
+  (ac)  |   additive\_1x2\_gamma\_1\_6 | Single additive bidder, 2 items, Gamma(1.6, 1.0) |
+  (ad)  |   additive\_1x2\_gamma\_1\_7 | Single additive bidder, 2 items, Gamma(1.7, 1.0) |
+  (ae)  |   additive\_1x2\_gamma\_1\_8 | Single additive bidder, 2 items, Gamma(1.8, 1.0) |
+  (af)  |   additive\_1x2\_gamma\_1\_9 | Single additive bidder, 2 items, Gamma(1.9, 1.0) |
+  (ag)  |   additive\_1x2\_gamma\_2\_0 | Single additive bidder, 2 items, Gamma(2.0, 1.0) |
+  (ah)  |   additive\_1x2\_gamma\_11 | Single additive bidder, 2 items, Gamma(1, 1) |
+  (ai)  |   additive\_1x2\_gamma\_21 | Single additive bidder, 2 items, Gamma(2, 1) |
+  (aj)  |   additive\_1x2\_gamma\_22 | Single additive bidder, 2 items, Gamma(2, 2) |
+  (ak)  |   additive\_1x2\_gamma\_31 | Single additive bidder, 2 items, Gamma(3, 1) |
+  (al)  |   additive\_1x2\_gamma\_41 | Single additive bidder, 2 items, Gamma(4, 1) |
+  (am)  |   additive\_1x2\_gamma\_101 | Single additive bidder, 2 items, Gamma(10, 1) |
+  (an)  |   additive\_1x2\_gamma\_20\_1 | Single additive bidder, 2 items, Gamma(20, 1) |
+  (ao)  |   additive\_1x3\_gamma\_1\_0\_1\_0 | Single additive bidder, 3 items, Gamma(1.0, 1.0) |
+  (ap)  |   additive\_1x3\_constrained\_c1 | Single additive bidder, 3 items, constrained allocation (c=1.0) |
 
 #### Data Saving for Restore
 All config files have `save_data = True` by default, which saves training data (`X.npy`) to enable checkpoint resumption and visualization.
+
+#### Hyperparameter Updates for Gamma Distributions
+All gamma distribution configurations have been updated with improved hyperparameters for better accuracy:
+- **num_hidden_units**: 1000 → **2000** (increased network capacity)
+- **max_iter**: 200000 → **400000** (longer training for better convergence)
+- **num_batches**: 5000 → **10000** (more diverse training data)
+- **batch_size**: 128 → **256** (more stable gradient estimation)
+
+These updates apply to all gamma distribution settings (e.g., `additive_1x2_gamma_0_1` through `additive_1x2_gamma_2_0`, `additive_1x2_gamma_11`, `additive_1x2_gamma_21`, etc.).
 
 #### Visualization
 Visualization notebooks are available for all settings. All visualization notebooks follow a consistent naming convention:
@@ -139,13 +174,30 @@ Where:
 - `visualize_additive_1x2_beta_1_0_1_0.ipynb` - Additive bidder, 1×2 auction, Beta(1.0, 1.0)
 
 **Available visualization notebooks**:
-- `visualize_additive_1x2_uniform_0_0_1_0.ipynb`
-- `visualize_additive_1x2_uniform_4_0_16_0_4_0_7_0.ipynb`
-- `visualize_additive_1x2_uniform_triangle.ipynb`
-- `visualize_additive_1x2_uniform_0_0_4_0_0_0_3_0.ipynb`
-- `visualize_unit_1x2_uniform_2_0_3_0.ipynb`
-- `visualize_additive_1x2_beta_1_0_1_0.ipynb`
-- `visualize_additive_1x2_gamma_1_0_1_0.ipynb` (and many other gamma distributions)
+- Uniform distributions:
+  - `visualize_additive_1x2_uniform_0_0_1_0.ipynb`
+  - `visualize_additive_1x2_uniform_4_0_16_0_4_0_7_0.ipynb`
+  - `visualize_additive_1x2_uniform_triangle.ipynb`
+  - `visualize_additive_1x2_uniform_0_0_4_0_0_0_3_0.ipynb`
+  - `visualize_additive_1x3_uniform_0_1.ipynb`
+  - `visualize_unit_1x2_uniform_2_0_3_0.ipynb`
+- Beta distributions:
+  - `visualize_additive_1x2_beta_1_0_1_0.ipynb`
+  - `visualize_additive_1x2_beta_1_0_2_0.ipynb`
+  - `visualize_additive_1x2_beta_2_0_1_0.ipynb`
+  - `visualize_additive_1x2_beta_1_0_3_0.ipynb`
+  - `visualize_additive_1x2_beta_3_0_1_0.ipynb`
+- Gamma distributions (extensive coverage):
+  - `visualize_additive_1x2_gamma_0_1_1_0.ipynb` through `visualize_additive_1x2_gamma_2_0_1_0.ipynb` (k=0.1 to 2.0)
+  - `visualize_additive_1x2_gamma_1_0_1_0.ipynb`
+  - `visualize_additive_1x2_gamma_2_0_2_0.ipynb`
+  - `visualize_additive_1x2_gamma_3_0_1_0.ipynb`
+  - `visualize_additive_1x2_gamma_4_0_1_0.ipynb`
+  - `visualize_additive_1x2_gamma_10_0_1_0.ipynb`
+  - `visualize_additive_1x2_gamma_20_0_1_0.ipynb`
+  - `visualize_additive_1x3_gamma_1_0_1_0.ipynb`
+- Constrained allocations:
+  - `visualize_additive_1x3_constrained_c1.ipynb`
   
 ### MyersonNet (Single Item Auctions)
   
@@ -193,11 +245,32 @@ setting\_no  |      setting\_name |
 
 - **additive\_1x2\_gamma\_41**: A single additive bidder with preferences over two items, where the item values are drawn from Gamma(k=4, θ=1) (mean=4, variance=4).
 
+- **additive\_1x2\_gamma\_0\_1** through **additive\_1x2\_gamma\_2\_0**: A single additive bidder with preferences over two items, where the item values are drawn from Gamma(k, 1.0) for k ranging from 0.1 to 2.0 in 0.1 increments. These settings allow for fine-grained exploration of the gamma distribution parameter space.
+
+- **additive\_1x2\_gamma\_101**: A single additive bidder with preferences over two items, where the item values are drawn from Gamma(k=10, θ=1) (mean=10, variance=10).
+
+- **additive\_1x2\_gamma\_20\_1**: A single additive bidder with preferences over two items, where the item values are drawn from Gamma(k=20, θ=1) (mean=20, variance=20).
+
+- **additive\_1x3\_uniform\_0\_1**: A single additive bidder with preferences over three items, where the item values are drawn from U[0, 1].
+
+- **additive\_1x3\_gamma\_1\_0\_1\_0**: A single additive bidder with preferences over three items, where the item values are drawn from Gamma(1.0, 1.0).
+
 ### Constrained Allocation (制約付き配分)
-- **additive\_1x3\_constrained\_c* (c=1, 3, 5, 7, 10, 100)**: 単一のadditive bidderと3財のオークション。財1と財2の価値はU\[0, 1\]に従い、財3の価値はU\[0, c\]に従う。財3の配分確率には以下の制約が課される：
+
+**RegretNet**:
+- **additive\_1x3\_constrained\_c0\_1** (c=0.1): 3人のadditive bidderと3財のオークション。財1と財2の価値はU\[0, 1\]に従い、財3の価値はU\[0, 0.1\]に従う。
+- **additive\_1x3\_constrained\_c0\_5** (c=0.5): 3人のadditive bidderと3財のオークション。財1と財2の価値はU\[0, 1\]に従い、財3の価値はU\[0, 0.5\]に従う。
+- **additive\_1x3\_constrained\_c1** (c=1.0): 3人のadditive bidderと3財のオークション。財1と財2の価値はU\[0, 1\]に従い、財3の価値はU\[0, 1\]に従う。
+- **additive\_1x3\_constrained\_c10** (c=10.0): 3人のadditive bidderと3財のオークション。財1と財2の価値はU\[0, 1\]に従い、財3の価値はU\[0, 10\]に従う。
+
+**RochetNet**:
+- **additive\_1x3\_constrained\_c1** (c=1.0): 単一のadditive bidderと3財のオークション。財1と財2の価値はU\[0, 1\]に従い、財3の価値はU\[0, 1\]に従う。
+
+すべてのconstrained設定において、財3の配分確率には以下の制約が課される：
   - 下界制約: 財3の配分確率 ≥ max(0, 財1の配分確率 + 財2の配分確率-1)
   - 上界制約: 財3の配分確率 ≤ min(財1の配分確率, 財2の配分確率)
-  制約違反に対してAugmented Lagrangian法を用いて罰則項を追加し、制約を満たしながらrevenueを最大化する。実装は既存クラスを変更せず、新規クラス（`constrained_additive_net.py`、`constrained_trainer.py`など）として追加されている。
+  
+制約違反に対してAugmented Lagrangian法を用いて罰則項を追加し、制約を満たしながらrevenueを最大化する。実装は既存クラスを変更せず、新規クラス（`constrained_additive_net.py`、`constrained_trainer.py`など）として追加されている。
 
 ### Multiple Bidders
 - **additive\_2x2\_uniform**: Two additive bidders and two items, where bidders draw their value for each item from U\[0, 1\]. 

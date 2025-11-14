@@ -27,7 +27,7 @@ __C.net = edict()
 # Init
 __C.net.b_init = [-1.0, 0.0]
 # num_hidden_units
-__C.net.num_hidden_units = 1000
+__C.net.num_hidden_units = 2000
 # soft-max constant for smooth argmax approximation
 __C.net.eps = 1e3
 
@@ -52,9 +52,9 @@ __C.train.wd = None
 # Choose between fixed and online. If online, set adv_reuse to False
 __C.train.data = "fixed"
 # Number of batches
-__C.train.num_batches = 5000
+__C.train.num_batches = 10000
 # Train batch size
-__C.train.batch_size = 128
+__C.train.batch_size = 256
 
 
 """ train summary and save params"""
