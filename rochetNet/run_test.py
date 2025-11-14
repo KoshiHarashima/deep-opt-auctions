@@ -302,6 +302,18 @@ elif setting == "additive_1x2_normal_corr_m07":
     Net = additive_net.Net
     Generator = normal_corr_m07_generator.Generator
     Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_normal_corr_095":
+    cfg = additive_1x2_normal_corr_095_config.cfg
+    Net = additive_net.Net
+    Generator = normal_corr_095_generator.Generator
+    Trainer = trainer.Trainer
+
+elif setting == "additive_1x2_normal_corr_m095":
+    cfg = additive_1x2_normal_corr_m095_config.cfg
+    Net = additive_net.Net
+    Generator = normal_corr_m095_generator.Generator
+    Trainer = trainer.Trainer
     
 else:
     print("None selected")
